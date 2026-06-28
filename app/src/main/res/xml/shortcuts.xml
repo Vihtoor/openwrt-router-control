@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="led_on"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_led_on"
+        android:shortcutShortLabel="@string/shortcut_led_on_short"
+        android:shortcutLongLabel="@string/shortcut_led_on_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="openwrt.router.control"
+            android:targetClass="com.example.MainActivity">
+            <extra android:name="command" android:value="led_on" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="led_off"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_led_off"
+        android:shortcutShortLabel="@string/shortcut_led_off_short"
+        android:shortcutLongLabel="@string/shortcut_led_off_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="openwrt.router.control"
+            android:targetClass="com.example.MainActivity">
+            <extra android:name="command" android:value="led_off" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="reboot"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_reboot_short"
+        android:shortcutLongLabel="@string/shortcut_reboot_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="openwrt.router.control"
+            android:targetClass="com.example.MainActivity">
+            <extra android:name="command" android:value="reboot" />
+        </intent>
+    </shortcut>
+</shortcuts>

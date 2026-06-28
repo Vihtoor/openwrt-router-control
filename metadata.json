@@ -1,0 +1,6 @@
+{
+  "name": "Openwrt Router Control",
+  "description": "Android application for managing OpenWrt routers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

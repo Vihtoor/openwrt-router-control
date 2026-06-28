@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget Style Palette (Dark Theme / Night Mode) -->
+    <color name="widget_bg">#1C1B1F</color>
+    <color name="widget_accent">#ADC6FF</color>
+    <color name="widget_divider">#44474E</color>
+    <color name="widget_text_primary">#E3E2E6</color>
+    <color name="widget_text_secondary">#C4C6D0</color>
+    <color name="widget_button_on">#ADC6FF</color>
+    <color name="widget_button_off">#44474E</color>
+    <color name="widget_button_text_on">#002F66</color>
+    <color name="widget_button_text_off">#C4C6D0</color>
+    <color name="widget_refresh_bg">#44474E</color>
+    <color name="widget_refresh_icon">#FFFFFF</color>
+</resources>

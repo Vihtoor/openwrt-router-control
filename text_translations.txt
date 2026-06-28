@@ -1,0 +1,518 @@
+            "led_on" -> viewModel.toggleLed(true)
+            "led_off" -> viewModel.toggleLed(false)
+            "reboot" -> viewModel.rebootRouter()
+                                "OpenWrt ${state.status.version}"
+                            "$openWrtText @ ${state.status.model}"
+                            "Router Control"
+                                    "$baseName, ${unmatchedIps.joinToString(", ")}"
+                                                "OpenVPN" -> "OpenVPN Служба"
+                                                "WireGuard" -> "WireGuard Интерфейс"
+                                                "AmneziaWG" -> "AmneziaWG Интерфейс"
+                                    "0.0.0.0, 0.0.0.1, 0.0.0.2",
+                            "root@openwrt:~# ${log.command}\n${log.output}"
+                                    "ADD_FAV" -> {
+                                    "SHOW_FAV" -> {
+                                    "ESC" -> {
+                                    "CTRL" -> {
+                                    "ALT" -> {
+                                    "▲" -> {
+                            "ADD_FAV" -> {
+                            "SHOW_FAV" -> {
+                                """.trimIndent()
+                                        "$pct%",
+        "Выберите DNS для использования на роутере." -> {
+                "ru" -> "Выберите DNS для использования на роутере."
+                "uk" -> "Виберіть DNS для використання на роутері."
+                "be" -> "Выберыце DNS для выкарыстання на роўтэры."
+                "de" -> "Wählen Sie das DNS für den Router aus."
+                "es" -> "Elija el DNS para usar en el enrutador."
+                "fr" -> "Choisissez le DNS à utiliser sur le routeur."
+                "it" -> "Scegli il DNS da utilizzare sul router."
+                "pt" -> "Escolha o DNS para usar no roteador."
+                "da" -> "Vælg DNS til brug på routeren."
+                "fi" -> "Valitse reitittimessä käytettävä DNS."
+                "kk" -> "Роутерде пайдалану үшін DNS таңдаңыз."
+                "lt" -> "Pasirinkite DNS naudoti maršrutizatoriuje."
+                "lv" -> "Izvēlieties DNS lietošanai maršrutētājā."
+                "sv" -> "Välj DNS för användning på routern."
+        "Пользовательский DNS" -> {
+                "ru" -> "Пользовательский DNS"
+                "uk" -> "Користувацький DNS"
+                "be" -> "Карыстацкі DNS"
+                "de" -> "Benutzerdefiniertes DNS"
+                "es" -> "DNS personalizado"
+                "fr" -> "DNS personnalisé"
+                "it" -> "DNS personalizzato"
+                "pt" -> "DNS personalizado"
+                "da" -> "Brugerdefineret DNS"
+                "fi" -> "Mukautettu DNS"
+                "kk" -> "Пайдаланушылық DNS"
+                "lt" -> "Pasirinktinis DNS"
+                "lv" -> "Pielāgots DNS"
+                "sv" -> "Anpassad DNS"
+        "IP адрес DNS сервера" -> {
+                "ru" -> "IP адрес DNS сервера"
+                "uk" -> "IP адреса DNS сервера"
+                "be" -> "IP адрас DNS сервера"
+                "de" -> "IP-Adresse des DNS-Servers"
+                "es" -> "Dirección IP del servidor DNS"
+                "fr" -> "Adresse IP du serveur DNS"
+                "it" -> "Indirizzo IP del server DNS"
+                "pt" -> "Endereço IP do servidor DNS"
+                "da" -> "IP-adresse for DNS-server"
+                "fi" -> "DNS-palvelimen IP-osoite"
+                "kk" -> "DNS серверінің IP мекенжайы"
+                "lt" -> "DNS serverio IP adresas"
+                "lv" -> "DNS servera IP adrese"
+                "sv" -> "IP-adress för DNS-server"
+        "Задать" -> {
+                "ru" -> "Задать"
+                "uk" -> "Встановити"
+                "be" -> "Задаць"
+                "de" -> "Festlegen"
+                "es" -> "Establecer"
+                "fr" -> "Définir"
+                "it" -> "Imposta"
+                "pt" -> "Definir"
+                "da" -> "Indstil"
+                "fi" -> "Aseta"
+                "kk" -> "Орнату"
+                "lt" -> "Nustatyti"
+                "lv" -> "Iestatīt"
+                "sv" -> "Ställ in"
+        "Желаете ли вы добавить дополнительный DNS?" -> {
+                "ru" -> "Желаете ли вы добавить дополнительный DNS?"
+                "uk" -> "Чи бажаєте ви додати додатковий DNS?"
+                "be" -> "Ці жадаеце вы дадаць дадатковы DNS?"
+                "de" -> "Möchten Sie einen zusätzlichen DNS hinzufügen?"
+                "es" -> "¿Desea agregar un DNS adicional?"
+                "fr" -> "Souhaitez-vous ajouter un DNS supplémentaire ?"
+                "it" -> "Vuoi aggiungere un DNS aggiuntivo?"
+                "pt" -> "Deseja adicionar um DNS adicional?"
+                "da" -> "Vil du tilføje en yderligere DNS?"
+                "fi" -> "Haluatko lisätä ylimääräisen DNS:n?"
+                "kk" -> "Қосымша DNS қосқыңыз келе ме?"
+                "lt" -> "Ar norite pridėti papildomą DNS?"
+                "lv" -> "Vai vēlaties pievienot papildu DNS?"
+                "sv" -> "Vill du lägga till en extra DNS?"
+        "Желаете ли вы добавить один из публичных DNS?" -> {
+                "ru" -> "Желаете ли вы добавить один из публичных DNS?"
+                "uk" -> "Чи бажаєте ви додати один з публічних DNS?"
+                "be" -> "Ці жадаеце вы дадаць адзін з публічных DNS?"
+                "de" -> "Möchten Sie einen öffentlichen DNS hinzufügen?"
+                "es" -> "¿Desea agregar uno de los DNS públicos?"
+                "fr" -> "Souhaitez-vous ajouter un des DNS publics ?"
+                "it" -> "Vuoi aggiungere uno dei DNS pubblici?"
+                "pt" -> "Deseja adicionar um dos DNS públicos?"
+                "da" -> "Vil du tilføje en af de offentlige DNS'er?"
+                "fi" -> "Haluatko lisätä yhden julkisista DNS:istä?"
+                "kk" -> "Ашық DNS-тің бірін қосқыңыз келе ме?"
+                "lt" -> "Ar norite pridėti vieną iš viešųjų DNS?"
+                "lv" -> "Vai vēlaties pievienot vienu no publiskajiem DNS?"
+                "sv" -> "Vill du lägga till en av de offentliga DNS:erna?"
+        "Добавьте один или несколько IP, разделяя их запятыми" -> {
+                "ru" -> "Добавьте один или несколько IP, разделяя их запятыми"
+                "uk" -> "Додайте один або кілька IP, розділяючи їх комами"
+                "be" -> "Дадайце адзін або некалькі IP, раздзяляючы іх коскамі"
+                "de" -> "Fügen Sie eine oder mehrere IP-Adressen durch Kommas getrennt hinzu"
+                "es" -> "Agregue una o más IP, separadas por comas"
+                "fr" -> "Ajoutez une ou plusieurs adresses IP, séparées par des virgules"
+                "it" -> "Aggiungi uno o più IP, separati da virgole"
+                "pt" -> "Adicione um ou mais IPs, separados por vírgulas"
+                "da" -> "Tilføj en eller flere IP'er, adskilt af kommaer"
+                "fi" -> "Lisää yksi tai useampi IP-osoite pilkuilla erotettuna"
+                "kk" -> "Бір немесе бірнеше IP қосыңыз, оларды үтірмен бөліңіз"
+                "lt" -> "Pridėkite vieną ar kelis IP, atskirtus kableliais"
+                "lv" -> "Pievienojiet vienu vai vairākus IP, atdalot tos ar komatiem"
+                "sv" -> "Lägg till en eller flera IP-adresser separerade med kommatecken"
+        "Дополнительный DNS" -> {
+                "ru" -> "Дополнительный DNS"
+                "uk" -> "Додатковий DNS"
+                "be" -> "Дадатковы DNS"
+                "de" -> "Zusätzliches DNS"
+                "es" -> "DNS adicional"
+                "fr" -> "DNS supplémentaire"
+                "it" -> "DNS aggiuntivo"
+                "pt" -> "DNS adicional"
+                "da" -> "Yderligere DNS"
+                "fi" -> "Lisä-DNS"
+                "kk" -> "Қосымша DNS"
+                "lt" -> "Papildomas DNS"
+                "lv" -> "Papildu DNS"
+                "sv" -> "Ytterligare DNS"
+        "Да" -> {
+                "ru" -> "Да"
+                "uk" -> "Так"
+                "be" -> "Так"
+                "de" -> "Ja"
+                "es" -> "Sí"
+                "fr" -> "Oui"
+                "it" -> "Sì"
+                "pt" -> "Sim"
+                "da" -> "Ja"
+                "fi" -> "Kyllä"
+                "kk" -> "Иә"
+                "lt" -> "Taip"
+                "lv" -> "Jā"
+                "sv" -> "Ja"
+        "Нет" -> {
+                "ru" -> "Нет"
+                "uk" -> "Ні"
+                "be" -> "Не"
+                "de" -> "Nein"
+                "es" -> "No"
+                "fr" -> "Non"
+                "it" -> "No"
+                "pt" -> "Não"
+                "da" -> "Nej"
+                "fi" -> "Ei"
+                "kk" -> "Жоқ"
+                "lt" -> "Ne"
+                "lv" -> "Nē"
+                "sv" -> "Nej"
+        "Connecting..." -> {
+                "ru" -> "Подключение..."
+                "uk" -> "Підключення..."
+                "be" -> "Падключэнне..."
+                "de" -> "Verbinden..."
+                "es" -> "Conectando..."
+                "fr" -> "Connexion..."
+                "it" -> "Connessione..."
+                "pt" -> "Conectando..."
+                "da" -> "Forbinder..."
+                "fi" -> "Yhdistetään..."
+                "kk" -> "Қосылуда..."
+                "lt" -> "Jungiamasi..."
+                "lv" -> "Savienojas..."
+                "sv" -> "Ansluter..."
+        "Detecting..." -> {
+                "ru" -> "Определение..."
+                "uk" -> "Визначення..."
+                "be" -> "Вызначэнне..."
+                "de" -> "Ermitteln..."
+                "es" -> "Detectando..."
+                "fr" -> "Détection..."
+                "it" -> "Rilevamento..."
+                "pt" -> "Detectando..."
+                "da" -> "Registrerer..."
+                "fi" -> "Tunnistetaan..."
+                "kk" -> "Анықталуда..."
+                "lt" -> "Aptinkama..."
+                "lv" -> "Nosaka..."
+                "sv" -> "Söker..."
+        "Offline / Error" -> {
+                "ru" -> "Офлайн / Ошибка"
+                "uk" -> "Офлайн / Помилка"
+                "be" -> "Афлайн / Памылка"
+                "de" -> "Offline / Fehler"
+                "es" -> "Sin conexão / Error"
+                "fr" -> "Hors ligne / Erreur"
+                "it" -> "Offline / Errore"
+                "pt" -> "Offline / Erro"
+                "da" -> "Offline / Fejl"
+                "fi" -> "Offline / Virhe"
+                "kk" -> "Офлайн / Қате"
+                "lt" -> "Neprisijungęs / Klaida"
+                "lv" -> "Bezsaiste / Kļūda"
+                "sv" -> "Offline / Fel"
+        "Unavailable" -> {
+                "ru" -> "Недоступно"
+                "uk" -> "Недоступно"
+                "be" -> "Недаступна"
+                "de" -> "Nicht verfügbar"
+                "es" -> "No disponible"
+                "fr" -> "Indisponible"
+                "it" -> "Non disponibile"
+                "pt" -> "Indisponível"
+                "da" -> "Utilgængelig"
+                "fi" -> "Ei saatavilla"
+                "kk" -> "Қолжетімсіз"
+                "lt" -> "Neprieinama"
+                "lv" -> "Nav pieejams"
+                "sv" -> "Inte tillgänglig"
+        "Unknown" -> {
+                "ru" -> "Неизвестно"
+                "uk" -> "Невідомо"
+                "be" -> "Невядома"
+                "de" -> "Unbekannt"
+                "es" -> "Desconocido"
+                "fr" -> "Inconnu"
+                "it" -> "Sconosciuto"
+                "pt" -> "Desconhecido"
+                "da" -> "Ukendt"
+                "fi" -> "Tuntematon"
+                "kk" -> "Белгісіз"
+                "lt" -> "Nežinoma"
+                "lv" -> "Nezināms"
+                "sv" -> "Okänd"
+        "Подтверждение DNS" -> {
+                "ru" -> "Подтверждение DNS"
+                "uk" -> "Підтвердження DNS"
+                "be" -> "Пацвярджэнне DNS"
+                "de" -> "DNS-Bestätigung"
+                "es" -> "Confirmación de DNS"
+                "fr" -> "Confirmation DNS"
+                "it" -> "Conferma DNS"
+                "pt" -> "Confirmação de DNS"
+                "da" -> "DNS-bekræftelse"
+                "fi" -> "DNS-vahvistus"
+                "kk" -> "DNS растау"
+                "lt" -> "DNS patvirtinimas"
+                "lv" -> "DNS apstiprinājums"
+                "sv" -> "DNS-bekräftelse"
+        "Установить %s в качестве DNS сервера?" -> {
+                "ru" -> "Установить %s в качестве DNS сервера?"
+                "uk" -> "Встановити %s як DNS сервер?"
+                "be" -> "Усталяваць %s у якасці DNS сервера?"
+                "de" -> "%s als DNS-Server festlegen?"
+                "es" -> "¿Establecer %s como servidor DNS?"
+                "fr" -> "Définir %s comme serveur DNS ?"
+                "it" -> "Impostare %s come server DNS?"
+                "pt" -> "Definir %s como servidor DNS?"
+                "da" -> "Indstil %s som DNS-server?"
+                "fi" -> "Aseta %s DNS-palvelimeksi?"
+                "kk" -> "%s DNS сервері ретінде орнату керек пе?"
+                "lt" -> "Nustatyti %s kaip DNS serverį?"
+                "lv" -> "Iestatīt %s kā DNS serveri?"
+                "sv" -> "Ställ in %s som DNS-server?"
+        "Подтвердить" -> {
+                "ru" -> "Подтвердить"
+                "uk" -> "Підтвердити"
+                "be" -> "Пацвердзіць"
+                "de" -> "Bestätigen"
+                "es" -> "Confirmar"
+                "fr" -> "Confirmer"
+                "it" -> "Conferma"
+                "pt" -> "Confirmar"
+                "da" -> "Bekræft"
+                "fi" -> "Vahvista"
+                "kk" -> "Растау"
+                "lt" -> "Patvirtinti"
+                "lv" -> "Apstiprināt"
+                "sv" -> "Bekräfta"
+        "Публичные DNS сервисы" -> {
+                "ru" -> "Публичные DNS сервисы"
+                "uk" -> "Публічні DNS сервіси"
+                "be" -> "Публічныя DNS сэрвісы"
+                "de" -> "Öffentliche DNS-Dienste"
+                "es" -> "Servicios DNS públicos"
+                "fr" -> "Services DNS publics"
+                "it" -> "Servizi DNS pubblici"
+                "pt" -> "Serviços DNS públicos"
+                "da" -> "Offentlige DNS-tjenester"
+                "fi" -> "Julkiset DNS-palvelut"
+                "kk" -> "Жалпыға ортақ DNS қызметтері"
+                "lt" -> "Viešosios DNS paslaugos"
+                "lv" -> "Publiskie DNS pakalpojumi"
+                "sv" -> "Offentliga DNS-tjänster"
+        "По умолчанию (Провайдер)" -> {
+                "ru" -> "По умолчанию (Провайдер)"
+                "uk" -> "За замовчуванням (Провайдер)"
+                "be" -> "Па змаўчанні (Правайдэр)"
+                "de" -> "Standard (ISP)"
+                "es" -> "Predeterminado (ISP)"
+                "fr" -> "Par défaut (FAI)"
+                "it" -> "Predefinito (ISP)"
+                "pt" -> "Padrão (ISP)"
+                "da" -> "Standard (ISP)"
+                "fi" -> "Oletus (ISP)"
+                "kk" -> "Әдепкі (Провайдер)"
+                "lt" -> "Numatytasis (ISP)"
+                "lv" -> "Noklusējums (ISP)"
+                "sv" -> "Standard (ISP)"
+        "Пользовательский: %s" -> {
+                "ru" -> "Пользовательский: %s"
+                "uk" -> "Користувацький: %s"
+                "be" -> "Карыстацкі: %s"
+                "de" -> "Benutzerdefiniert: %s"
+                "es" -> "Personalizado: %s"
+                "fr" -> "Personnalisé : %s"
+                "it" -> "Personalizzato: %s"
+                "pt" -> "Personalizado: %s"
+                "da" -> "Brugerdefineret: %s"
+                "fi" -> "Mukautettu: %s"
+                "kk" -> "Пайдаланушылық: %s"
+                "lt" -> "Pasirinktinis: %s"
+                "lv" -> "Pielāgots: %s"
+                "sv" -> "Anpassad: %s"
+        "Получение данных..." -> {
+                "ru" -> "Получение данных..."
+                "uk" -> "Отримання даних..."
+                "be" -> "Атрыманне дадзеных..."
+                "de" -> "Daten abrufen..."
+                "es" -> "Obteniendo datos..."
+                "fr" -> "Obtention des données..."
+                "it" -> "Recupero dati..."
+                "pt" -> "Obtendo dados..."
+                "da" -> "Henter data..."
+                "fi" -> "Haetaan tietoja..."
+                "kk" -> "Деректер алынуда..."
+                "lt" -> "Gaunami duomenys..."
+                "lv" -> "Datu iegūšana..."
+                "sv" -> "Hämtar data..."
+        "Router Control" -> context.getString(R.string.app_name)
+        "Настройка подключения" -> context.getString(R.string.tab_dashboard)
+        "Главная" -> context.getString(R.string.tab_dashboard)
+        "Консоль" -> context.getString(R.string.tab_console)
+        "Тест" -> context.getString(R.string.tab_test)
+        "Инструменты" -> context.getString(R.string.tab_test)
+        "Тест скорости M-Lab" -> context.getString(R.string.speed_test_title)
+        "Перезапуск" -> context.getString(R.string.tab_reboot)
+        "Перезагрузка" -> context.getString(R.string.tab_reboot)
+        "Перезагрузка роутера" -> context.getString(R.string.dialog_reboot_title)
+        "Вы уверены, что хотите перезагрузить роутер? Это временно прервет сетевое соединение." -> context.getString(R.string.dialog_reboot_msg)
+        "Перезагрузить" -> context.getString(R.string.btn_reboot)
+        "Отмена" -> context.getString(R.string.btn_cancel)
+        "Публичный IP" -> context.getString(R.string.label_public_ip)
+        "Локация" -> context.getString(R.string.label_location)
+        "Провайдер" -> context.getString(R.string.label_provider)
+        "Загрузка ↓" -> context.getString(R.string.speed_download)
+        "Выгрузка ↑" -> context.getString(R.string.speed_upload)
+        "Процессор" -> context.getString(R.string.label_processor)
+        "ЦП" -> context.getString(R.string.label_cpu)
+        "ОЗУ" -> context.getString(R.string.label_ram)
+        "Аптайм" -> context.getString(R.string.label_uptime)
+        "Ожидание данных трафика..." -> context.getString(R.string.msg_waiting_traffic)
+        "SSH терминал" -> context.getString(R.string.console_title)
+        "Очистить логи" -> context.getString(R.string.console_desc_clear)
+        "Терминал пуст. Введите команду в поле ниже." -> context.getString(R.string.console_empty)
+        "Терминал пуст. Введите команду в поле ниже или используйте уже введенную команду для запуска теста на скачивание с роутера на смартфон в течение 30 секунд." -> context.getString(R.string.iperf_router_console_empty)
+        "Терминал пуст. Введите команду в поле ниже или используйте уже введенную команду для запуска теста на скачивание с роутера на смартфон в течение 30 секунд" -> context.getString(R.string.iperf_router_console_empty)
+        "Терминал пуст. Ведите команду в поле ниже или используйте уже введенную команду для запуска теста на скачивание с роутера на смартфон в течение 30 секунд." -> context.getString(R.string.iperf_router_console_empty)
+        "Терминал пуст. Ведите команду в поле ниже или используйте уже введенную команду для запуска теста на скачивание с роутера на смартфон в течение 30 секунд" -> context.getString(R.string.iperf_router_console_empty)
+        "Введите команду" -> context.getString(R.string.console_hint_command)
+        "Отправить" -> context.getString(R.string.console_desc_send)
+        "SSH Подключение" -> context.getString(R.string.ssh_title)
+        "Закрыть" -> context.getString(R.string.ssh_desc_close)
+        "Введите реквизиты доступа SSH вашего роутера OpenWrt для сбора статистики и управления службами VPN." -> context.getString(R.string.ssh_instructions)
+        "IP Адрес" -> context.getString(R.string.ssh_host)
+        "Порт SSH" -> context.getString(R.string.ssh_port)
+        "Логин" -> context.getString(R.string.ssh_username)
+        "Пароль SSH" -> context.getString(R.string.ssh_password)
+        "Пароль" -> context.getString(R.string.ssh_password_short)
+        "Скрыть" -> context.getString(R.string.ssh_btn_hide)
+        "Показать" -> context.getString(R.string.ssh_btn_show)
+        "Подключено" -> context.getString(R.string.btn_connected)
+        "Подключить" -> context.getString(R.string.btn_connect)
+        "Поведение светодиода" -> context.getString(R.string.led_behavior_title)
+        "Горит постоянно" -> context.getString(R.string.led_always_on)
+        "Индикатор трафика" -> context.getString(R.string.led_traffic_indicator)
+        "Интерфейс WireGuard" -> context.getString(R.string.wg_interface_title)
+        "Выберите интерфейс" -> context.getString(R.string.wg_select_interface)
+        "Выбор интерфейса" -> context.getString(R.string.wg_desc_select)
+        "Сохранить изменения" -> context.getString(R.string.btn_save_changes)
+        "Удалить подключение" -> context.getString(R.string.btn_delete_conn)
+        "Запущена" -> context.getString(R.string.status_running)
+        "Остановлена" -> context.getString(R.string.status_stopped)
+        "OpenVPN Служба" -> context.getString(R.string.title_openvpn_service)
+        "WireGuard Интерфейс" -> context.getString(R.string.title_wireguard_interface)
+        "Включен" -> context.getString(R.string.status_on)
+        "Выключен" -> context.getString(R.string.status_off)
+        "Выберите OpenVPN, нажав на иконку слева" -> context.getString(R.string.status_select_openvpn)
+        "Выберите Wireguard, нажав на иконку слева" -> context.getString(R.string.status_select_wireguard)
+        "Выберите OpenVPN / Wireguard, нажав на иконку слева" -> context.getString(R.string.status_select_vpn)
+        "Список соединений" -> context.getString(R.string.vpn_list_desc)
+        "Получение данных от роутера..." -> context.getString(R.string.vpn_getting_data)
+        "Применение изменений..." -> context.getString(R.string.vpn_applying_changes)
+        "Активен" -> context.getString(R.string.vpn_active)
+        "Нет активных VPN соединений" -> context.getString(R.string.vpn_no_active)
+        "Все VPN отключены" -> context.getString(R.string.vpn_all_disabled)
+        "Доступные VPN. Выберите те, которые должны быть включены" -> context.getString(R.string.vpn_available_title)
+        "Применить" -> context.getString(R.string.vpn_apply)
+        "AmneziaWG Интерфейс" -> context.getString(R.string.vpn_amneziawg_interface)
+        "Светодиод роутера" -> context.getString(R.string.title_router_led)
+        "Включение..." -> context.getString(R.string.status_enabling)
+        "Включение VPN..." -> context.getString(R.string.status_enabling)
+        "Выключение..." -> context.getString(R.string.status_disabling)
+        "Выключение VPN..." -> context.getString(R.string.status_disabling)
+        "Переключение..." -> context.getString(R.string.status_switching)
+        "Кликните здесь, чтобы открыть клавиатуру и начать ввод..." -> {
+                "ru" -> "Кликните здесь, чтобы открыть клавиатуру и начать ввод..."
+                "uk" -> "Клікніть тут, щоб відкрити клавіатуру та почати введення..."
+                "be" -> "Клікніце тут, каб адкрыць клавіятуру і пачаць увод..."
+                "de" -> "Klicken Sie hier, um die Tastatur zu öffnen und mit der Eingabe zu beginnen..."
+                "es" -> "Haga clic aquí para abrir el teclado y comenzar a escribir..."
+                "fr" -> "Cliquez ici pour ouvrir le clavier et commencer à saisir..."
+                "it" -> "Clicca qui per aprire la tastiera e iniziare a digitare..."
+                "pt" -> "Clique aqui para abrir o teclado e começar a digitar..."
+                "da" -> "Klik her for at åbne tastaturet og begynde at skrive..."
+                "fi" -> "Avaa näppäimistö ja aloita kirjoittaminen napsauttamalla tästä..."
+                "kk" -> "Пернетақтаны ашу және теруді бастау үшін осы жерді басыңыз..."
+                "lt" -> "Spustelėkite čias, kad atidarytumėte klaviatūrą ir pradėtumėte rašyti..."
+                "lv" -> "Noklikšķiniet šeit, lai atvērtu tastatūru un sāktu rakstīt..."
+                "sv" -> "Klicka här för att öppna tangentbordet och börja skriva..."
+        "Добавить в избранное" -> {
+                "ru" -> "Добавить в избранное"
+                "uk" -> "Додати до обраного"
+                "be" -> "Дадаць у абранае"
+                "de" -> "Zu Favoriten hinzufügen"
+                "es" -> "Agregar a favoritos"
+                "fr" -> "Ajouter aux favoris"
+                "it" -> "Aggiungi ai preferiti"
+                "pt" -> "Adicionar aos favoritos"
+                "da" -> "Tilføj til favoritter"
+                "fi" -> "Lisää suosikkeihin"
+                "kk" -> "Таңдаулыларға қосу"
+                "lt" -> "Pridėti prie mėgstamiausių"
+                "lv" -> "Pievienot izlasei"
+                "sv" -> "Lägg till i favoriter"
+        "Команда" -> {
+                "ru" -> "Команда"
+                "uk" -> "Команда"
+                "be" -> "Каманда"
+                "de" -> "Befehl"
+                "es" -> "Comando"
+                "fr" -> "Commande"
+                "it" -> "Comando"
+                "pt" -> "Comando"
+                "da" -> "Kommando"
+                "fi" -> "Komento"
+                "kk" -> "Команда"
+                "lt" -> "Komanda"
+                "lv" -> "Komanda"
+                "sv" -> "Kommando"
+        "Добавить" -> {
+                "ru" -> "Добавить"
+                "uk" -> "Додати"
+                "be" -> "Дадаць"
+                "de" -> "Hinzufügen"
+                "es" -> "Agregar"
+                "fr" -> "Ajouter"
+                "it" -> "Aggiungi"
+                "pt" -> "Adicionar"
+                "da" -> "Tilføj"
+                "fi" -> "Lisää"
+                "kk" -> "Қосу"
+                "lt" -> "Pridėti"
+                "lv" -> "Pievienot"
+                "sv" -> "Lägg till"
+        "Текст скопирован в буфер обмена" -> {
+                "ru" -> "Текст скопирован в буфер обмена"
+                "uk" -> "Текст скопійовано в буфер обміну"
+                "be" -> "Тэкст скапіяваны ў буфер абмену"
+                "de" -> "Text in die Zwischenablage kopiert"
+                "es" -> "Texto copiado al portapapeles"
+                "fr" -> "Texte copié dans le presse-papiers"
+                "it" -> "Testo copiato negli appunti"
+                "pt" -> "Texto copiado para a área de transferência"
+                "da" -> "Tekst kopieret til udklipsholder"
+                "fi" -> "Teksti kopioitu leikepöydälle"
+                "kk" -> "Мәтін алмасу буферіне көшірілді"
+                "lt" -> "Tekstas nukopijuotas į iškarpinę"
+                "lv" -> "Teksts nokopēts starpliktuvē"
+                "sv" -> "Texten har kopierats till urklipp"
+        "Копировать" -> {
+                "ru" -> "Копировать"
+                "uk" -> "Копіювати"
+                "be" -> "Капіяваць"
+                "de" -> "Kopieren"
+                "es" -> "Copiar"
+                "fr" -> "Copier"
+                "it" -> "Copia"
+                "pt" -> "Copiar"
+                "da" -> "Kopier"
+                "fi" -> "Kopioi"
+                "kk" -> "Көшіру"
+                "lt" -> "Kopijuoti"
+                "lv" -> "Kopēt"
+                "sv" -> "Kopiera"

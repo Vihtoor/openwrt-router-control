@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@drawable/widget_background">
+
+    <!-- Header info area -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="5dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/widget_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Панель Xiaomi AX3000T"
+                android:textColor="@color/widget_accent"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/widget_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Нажмите для проверки"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btn_refresh"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/widget_refresh_bg"
+            android:src="@android:drawable/ic_popup_sync"
+            android:tint="@color/widget_refresh_icon"
+            android:padding="8dp"
+            android:scaleType="fitCenter"
+            android:contentDescription="Обновить" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/widget_divider"
+        android:layout_marginBottom="8dp" />
+
+
+
+    <!-- LED Toggle Area -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/btn_star_big_on"
+            android:layout_marginRight="8dp"
+            android:layout_marginEnd="8dp" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Светодиод роутера"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/led_status_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Инициализация..."
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/btn_toggle_led"
+            android:layout_width="52dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_switch_off"
+            android:scaleType="fitCenter"
+            android:focusable="true"
+            android:clickable="true" />
+    </LinearLayout>
+
+</LinearLayout>
