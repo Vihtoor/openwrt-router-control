@@ -12,7 +12,5 @@ data class RouterConfig(
     val sshKeyOrPassword: String,
     val ledBehavior: String = "always_on",
     val wgInterface: String = "wg0",
-    val openVpnService: String = "openvpn",
-    val isVpnMasterOn: Boolean = false,
-    val selectedVpns: String = ""
+    val openVpnService: String = "openvpn"
 )

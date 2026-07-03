@@ -17,8 +17,8 @@ android {
     applicationId = "openwrt.router.control"
     minSdk = 24
     targetSdk = 36
-    versionCode = 5
-    versionName = "1.6.3"
+    versionCode = 7
+    versionName = "1.6.4"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -67,12 +67,12 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
-// Custom task to copy and rename the generated APK to RouterControl-v1.6.3.apk while preserving original app-debug.apk
+// Custom task to copy and rename the generated APK to RouterControl-v1.6.4.apk while preserving original app-debug.apk
 tasks.register<Copy>("copyRenameApk") {
     val buildDir = layout.buildDirectory.get().asFile
     from(File(buildDir, "outputs/apk/debug/app-debug.apk"))
     into(rootProject.layout.projectDirectory.dir(".build-outputs"))
-    rename { "RouterControl-v1.6.3.apk" }
+    rename { "RouterControl-v1.6.4.apk" }
 }
 
 val envScriptFile = File(project.rootDir, "align_arm64_elf.py").absolutePath
@@ -144,15 +144,7 @@ tasks.register("downloadIperfBinaries") {
             jniAbiDir.mkdirs()
             val jniFile = File(jniAbiDir, "libiperf3.so")
 
-            val isElfValid = destFile.exists() && destFile.length() > 10000 && try {
-                destFile.inputStream().use { input ->
-                    val magic = ByteArray(4)
-                    val bytesRead = input.read(magic)
-                    bytesRead == 4 && magic[0] == 0x7F.toByte() && magic[1] == 'E'.toByte() && magic[2] == 'L'.toByte() && magic[3] == 'F'.toByte()
-                }
-            } catch (e: Exception) {
-                false
-            }
+            val isElfValid = false // Force download to overwrite corrupted files
 
             if (!isElfValid) {
                 println("Downloading iperf3 binary for $abi...")

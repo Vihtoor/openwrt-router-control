@@ -205,36 +205,28 @@ class RouterWidgetProvider : AppWidgetProvider() {
                     val oldIp = try { repository.queryPublicIpOnly(config) } catch(e: Exception) { "" }
 
                     if (nextVpnState) {
-                        val selectedNames = config.selectedVpns.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                        if (selectedNames.isNotEmpty()) {
-                            val availableOvpn = repository.fetchEnabledOpenVpnServices(config)
-                            val interfaces = repository.fetchRouterInterfaces(config)
-                            for (name in selectedNames) {
-                                if (availableOvpn.contains(name)) {
-                                    repository.setOpenVpnStatus(config, true, name)
-                                } else if (interfaces.contains(name)) {
-                                    repository.executeConsoleCommand(config, "ifup $name", saveToLog = false)
-                                } else {
-                                    repository.executeConsoleCommand(config, "ifup $name", saveToLog = false)
-                                }
-                            }
+                        val hasOvpn = config.openVpnService.isNotEmpty()
+                        val hasWg = config.wgInterface.isNotEmpty()
+                        if (hasWg) {
+                            repository.setWireguardStatus(config, true)
+                        } else if (hasOvpn) {
+                            repository.setOpenVpnStatus(config, true)
                         } else {
-                            val hasOvpn = config.openVpnService.isNotEmpty()
-                            val hasWg = config.wgInterface.isNotEmpty()
-                            if (hasWg) {
-                                repository.setWireguardStatus(config, true)
-                            } else if (hasOvpn) {
-                                repository.setOpenVpnStatus(config, true)
-                            } else {
-                                repository.setWireguardStatus(config, true)
-                            }
+                            repository.setWireguardStatus(config, true)
                         }
                     } else {
                         repository.setOpenVpnStatus(config, false)
                         repository.setWireguardStatus(config, false)
-                        val selectedNames = config.selectedVpns.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                        for (name in selectedNames) {
-                            repository.executeConsoleCommand(config, "ifdown $name", saveToLog = false)
+                        
+                        // We also need to stop any running WireGuard interfaces that might be active
+                        try {
+                            val status = repository.queryRouterStatus(config)
+                            val activeWgList = status.activeWgInterface?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+                            for (name in activeWgList) {
+                                repository.executeConsoleCommand(config, "ifdown $name", saveToLog = false)
+                            }
+                        } catch (e: Exception) {
+                            // Ignore errors during stop
                         }
                     }
 

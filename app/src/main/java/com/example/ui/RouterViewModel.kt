@@ -140,7 +140,8 @@ data class UiState(
     val isVpnListDialogOpen: Boolean = false,
     val isVpnTransitioning: Boolean = false,
     val vpnTransitionText: String? = null,
-    val isDnsListDialogOpen: Boolean = false
+    val isDnsListDialogOpen: Boolean = false,
+    val isInteractiveShellActive: Boolean = false
 )
 
 class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
@@ -173,6 +174,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
     fun startInteractiveShellSession() {
         val config = _uiState.value.config ?: return
         stopInteractiveShellSession()
+        _uiState.update { it.copy(isInteractiveShellActive = true) }
         interactiveShellJob = viewModelScope.launch {
             try {
                 repository.clearConsoleLogs()
@@ -258,11 +260,14 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                 interactiveShellLogId?.let { lid ->
                     repository.updateConsoleLog(lid, "sh", interactiveShellOutputBuffer.toString())
                 }
+            } finally {
+                _uiState.update { it.copy(isInteractiveShellActive = false) }
             }
         }
     }
 
     fun stopInteractiveShellSession() {
+        _uiState.update { it.copy(isInteractiveShellActive = false) }
         interactiveShellJob?.cancel()
         interactiveShellJob = null
         viewModelScope.launch {
@@ -295,8 +300,6 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                     // Start updates for this config
                     startPollers(config)
                     refreshStatus()
-                    fetchInterfaces(config)
-                    fetchEnabledOpenVpnServices(config)
 
                     // Execute pending command if any
                     pendingCommand?.let { cmd ->
@@ -340,9 +343,15 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
         _uiState.update { it.copy(currentTab = tab) }
         if (tab == TabType.CONSOLE && oldTab != TabType.CONSOLE) {
             _uiState.update { it.copy(commandInput = "") }
-            startInteractiveShellSession()
-        } else if (oldTab == TabType.CONSOLE && tab != TabType.CONSOLE) {
-            stopInteractiveShellSession()
+            if (interactiveShellJob == null) {
+                startInteractiveShellSession()
+            } else {
+                interactiveShellLogId?.let { id ->
+                    viewModelScope.launch {
+                        repository.updateConsoleLog(id, "sh", interactiveShellOutputBuffer.toString())
+                    }
+                }
+            }
         }
         if (tab == TabType.DASHBOARD && oldTab != TabType.DASHBOARD) {
             refreshStatus()
@@ -475,24 +484,6 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
 
     fun clearConnectionError() {
         _uiState.update { it.copy(connectionError = null) }
-    }
-
-    private fun fetchInterfaces(config: RouterConfig) {
-        viewModelScope.launch {
-            val list = repository.fetchRouterInterfaces(config)
-            _uiState.update { it.copy(availableInterfaces = list) }
-            if (list.size == 1 && list.first() != config.wgInterface) {
-                val updatedConfig = config.copy(wgInterface = list.first())
-                repository.saveRouterConfig(updatedConfig)
-            }
-        }
-    }
-
-    fun fetchEnabledOpenVpnServices(config: RouterConfig) {
-        viewModelScope.launch {
-            val list = repository.fetchEnabledOpenVpnServices(config)
-            _uiState.update { it.copy(availableOpenVpnServices = list) }
-        }
     }
 
     fun selectOpenVpnService(newService: String) {
@@ -663,6 +654,11 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                 val statusDeferred = async { repository.queryRouterStatus(config) }
 
                 val ifacesWithProtos = try { interfacesWithProtosDeferred.await() } catch (e: Exception) { emptyMap<String, String>() }
+                val ifacesList = ifacesWithProtos.keys.toList()
+                if (ifacesList.size == 1 && ifacesList.first() != config.wgInterface) {
+                    val updatedConfig = config.copy(wgInterface = ifacesList.first())
+                    repository.saveRouterConfig(updatedConfig)
+                }
                 val availableOvpn = try { openVpnDeferred.await() } catch (e: Exception) { emptyList<String>() }
                 var freshStatus = statusDeferred.await()
 
@@ -675,9 +671,6 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
 
                 val activeWgList = freshStatus.activeWgInterface?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
                 val isWireguardActiveOnRouter = freshStatus.isWireGuardActive || activeWgList.isNotEmpty()
-
-                // Parse saved selections
-                val savedSelectedNames = config.selectedVpns.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
 
                 val newVpnList = mutableListOf<RouterVpnItem>()
                 val activeOvpnList = freshStatus.activeOpenVpnInstances?.split(",")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: emptyList()
@@ -702,22 +695,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                     newVpnList.add(RouterVpnItem(name = ifaceName, type = type, isRunning = isRunning, isChecked = isChecked))
                 }
 
-                var finalConfig = config
-                var finalVpnList: List<RouterVpnItem> = newVpnList
-
                 if (!isFirstLaunchVpnSyncDone) {
-                    val runningList = newVpnList.filter { it.isRunning }
-                    if (runningList.isNotEmpty()) {
-                        val runningNames = runningList.map { it.name }
-                        finalConfig = config.copy(
-                            selectedVpns = runningNames.joinToString(","),
-                            isVpnMasterOn = true
-                        )
-                        repository.saveRouterConfig(finalConfig)
-                        finalVpnList = newVpnList.map { item ->
-                            if (item.isRunning) item.copy(isChecked = true) else item
-                        }
-                    }
                     isFirstLaunchVpnSyncDone = true
                 }
 
@@ -725,12 +703,12 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                     it.copy(
                         availableInterfaces = ifacesWithProtos.keys.toList(),
                         availableOpenVpnServices = availableOvpn,
-                        vpnList = finalVpnList,
+                        vpnList = newVpnList,
                         status = freshStatus.copy(isWireGuardActive = isWireguardActiveOnRouter), 
                         isStatusRefreshing = false,
                         wireguardTransition = null,
                         openVpnTransition = null,
-                        config = finalConfig
+                        config = config
                     ) 
                 }
 
@@ -769,12 +747,16 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                 val statusDeferred = async { repository.queryRouterStatus(config) }
 
                 val ifacesWithProtos = try { interfacesWithProtosDeferred.await() } catch (e: Exception) { emptyMap<String, String>() }
+                val ifacesList = ifacesWithProtos.keys.toList()
+                if (ifacesList.size == 1 && ifacesList.first() != config.wgInterface) {
+                    val updatedConfig = config.copy(wgInterface = ifacesList.first())
+                    repository.saveRouterConfig(updatedConfig)
+                }
                 val availableOvpn = try { openVpnDeferred.await() } catch (e: Exception) { emptyList<String>() }
                 val freshStatus = try { statusDeferred.await() } catch (e: Exception) { RouterStatus() }
 
                 val activeWgList = freshStatus.activeWgInterface?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
                 val isWireguardActiveOnRouter = freshStatus.isWireGuardActive || activeWgList.isNotEmpty()
-                val savedSelectedNames = config.selectedVpns.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
 
                 val newVpnList = mutableListOf<RouterVpnItem>()
                 val activeOvpnList = freshStatus.activeOpenVpnInstances?.split(",")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: emptyList()
@@ -836,20 +818,10 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
     fun applyVpnListChanges(isTv: Boolean = false) {
         val config = _uiState.value.config ?: return
         val tentative = _uiState.value.tentativeVpnList
-        val selectedNames = tentative.filter { it.isChecked }.map { it.name }.joinToString(",")
         val isMasterOn = true
 
         viewModelScope.launch {
             _uiState.update { it.copy(isVpnTransitioning = true, vpnTransitionText = "Применение изменений...") }
-            
-            // Save the selected state to DB first. Since there is no master switch in the new unified layout,
-            // we automatically set isVpnMasterOn to true if at least one VPN is selected, or false if none are.
-            val updatedConfig = config.copy(
-                selectedVpns = selectedNames,
-                isVpnMasterOn = selectedNames.isNotEmpty()
-            )
-            repository.saveRouterConfig(updatedConfig)
-            _uiState.update { it.copy(config = updatedConfig) }
             
             if (isMasterOn) {
                 // Determine start/stop actions
@@ -875,7 +847,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                 if (commands.isNotEmpty()) {
                     try {
                         val combinedCommand = commands.joinToString("; ")
-                        repository.executeConsoleCommand(updatedConfig, combinedCommand, saveToLog = false)
+                        repository.executeConsoleCommand(config, combinedCommand, saveToLog = false)
                         delay(1200)
                     } catch (e: Exception) {
                         Log.e("RouterViewModel", "Failed to apply VPN changes: ${e.message}")
@@ -909,30 +881,17 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                 ) 
             }
             
-            // 1. Update config isVpnMasterOn in DB
-            val updatedConfig = config.copy(isVpnMasterOn = enable)
-            repository.saveRouterConfig(updatedConfig)
-            _uiState.update { it.copy(config = updatedConfig) }
-            
             val vpnItems = _uiState.value.vpnList
             val commands = mutableListOf<String>()
             
             if (enable) {
-                // Start checked, stop unchecked
-                for (item in vpnItems) {
-                    if (item.isChecked) {
-                        if (item.type == "OpenVPN") {
-                            commands.add("/etc/init.d/openvpn start ${item.name}")
-                        } else {
-                            commands.add("ifup ${item.name}")
-                        }
-                    } else {
-                        if (item.type == "OpenVPN") {
-                            commands.add("/etc/init.d/openvpn stop ${item.name}")
-                        } else {
-                            commands.add("ifdown ${item.name}")
-                        }
-                    }
+                val hasOvpn = config.openVpnService.isNotEmpty()
+                val hasWg = config.wgInterface.isNotEmpty()
+                
+                if (hasWg) {
+                    commands.add("ifup ${config.wgInterface}")
+                } else if (hasOvpn) {
+                    commands.add("/etc/init.d/openvpn start ${config.openVpnService}")
                 }
             } else {
                 // Stop all
@@ -948,7 +907,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
             if (commands.isNotEmpty()) {
                 try {
                     val combinedCmd = commands.joinToString("; ")
-                    repository.executeConsoleCommand(updatedConfig, combinedCmd, saveToLog = false)
+                    repository.executeConsoleCommand(config, combinedCmd, saveToLog = false)
                     delay(1200)
                 } catch (e: Exception) {
                     Log.e("RouterViewModel", "Failed to toggle master VPN: ${e.message}")

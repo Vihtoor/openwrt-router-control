@@ -179,6 +179,54 @@ private val CopyIcon = androidx.compose.ui.graphics.vector.ImageVector.Builder(
     }
 }.build()
 
+private val PasteIcon = androidx.compose.ui.graphics.vector.ImageVector.Builder(
+    name = "Paste",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f
+).apply {
+    path(
+        stroke = SolidColor(androidx.compose.ui.graphics.Color(0xFF64D2FF)),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round
+    ) {
+        moveTo(9f, 2f)
+        lineTo(15f, 2f)
+        lineTo(15f, 5f)
+        lineTo(9f, 5f)
+        close()
+    }
+    path(
+        stroke = SolidColor(androidx.compose.ui.graphics.Color(0xFF64D2FF)),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round
+    ) {
+        moveTo(9f, 4f)
+        lineTo(5f, 4f)
+        lineTo(5f, 22f)
+        lineTo(19f, 22f)
+        lineTo(19f, 4f)
+        lineTo(15f, 4f)
+    }
+    path(
+        stroke = SolidColor(androidx.compose.ui.graphics.Color(0xFF64D2FF)),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round
+    ) {
+        moveTo(9f, 10f)
+        lineTo(15f, 10f)
+    }
+    path(
+        stroke = SolidColor(androidx.compose.ui.graphics.Color(0xFF64D2FF)),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round
+    ) {
+        moveTo(9f, 14f)
+        lineTo(15f, 14f)
+    }
+}.build()
+
 private val TerminalIcon = androidx.compose.ui.graphics.vector.ImageVector.Builder(
     name = "Terminal",
     defaultWidth = 24.dp,
@@ -219,6 +267,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    this, android.Manifest.permission.POST_NOTIFICATIONS
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    1002
+                )
+            }
+        }
+
         handleIntent(intent)
 
         // Initialize and push all dynamic shortcuts to the system
@@ -234,6 +294,21 @@ class MainActivity : ComponentActivity() {
             MyApplicationTheme {
                 MainScreen(viewModel)
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        stopService(android.content.Intent(this, SshForegroundService::class.java))
+    }
+
+    override fun onStop() {
+        super.onStop()
+        val intent = android.content.Intent(this, SshForegroundService::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
         }
     }
 
@@ -275,6 +350,98 @@ fun MainScreen(viewModel: RouterViewModel) {
     }
     var isWifiAnalyzerFullScreen by remember { mutableStateOf(false) }
 
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    
+    LaunchedEffect(Unit) {
+        val lang = context.resources.configuration.locales[0].language
+        val info = checkUpdate(lang)
+        if (info != null) {
+            val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "v1.0.0"
+            val latestVer = info.version.replace("v", "").replace(".", "").toIntOrNull() ?: 0
+            val currentVer = currentVersion.replace("v", "").replace(".", "").toIntOrNull() ?: 0
+            if (latestVer > currentVer) {
+                val prefs = context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+                val skippedVersion = prefs.getString("skipped_update_version", "")
+                if (info.version != skippedVersion) {
+                    updateInfo = info
+                }
+            }
+        }
+    }
+    
+    updateInfo?.let { info ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { updateInfo = null },
+            title = { Text(translateText("Доступно обновление", context), fontWeight = FontWeight.Bold) },
+            text = {
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(translateText("Найдена новая версия:", context) + " ${info.version}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                        item {
+                            Text(info.releaseNotes, style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val downloadText = "- " + translateText("Скачать обновление вы можете вручную с https://github.com/Vihtoor/openwrt-router-control/releases", context)
+                            val url = "https://github.com/Vihtoor/openwrt-router-control/releases"
+                            val startIndex = downloadText.indexOf(url)
+                            if (startIndex != -1) {
+                                val annotatedString = androidx.compose.ui.text.buildAnnotatedString {
+                                    append(downloadText)
+                                    addStyle(
+                                        style = androidx.compose.ui.text.SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+                                        start = startIndex,
+                                        end = startIndex + url.length
+                                    )
+                                    addStringAnnotation(
+                                        tag = "URL",
+                                        annotation = url,
+                                        start = startIndex,
+                                        end = startIndex + url.length
+                                    )
+                                }
+                                androidx.compose.foundation.text.ClickableText(
+                                    text = annotatedString,
+                                    onClick = { offset ->
+                                        annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                                            .firstOrNull()?.let { annotation ->
+                                                uriHandler.openUri(annotation.item)
+                                            }
+                                    },
+                                    style = MaterialTheme.typography.bodySmall.copy(color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                                )
+                            } else {
+                                Text(downloadText, style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50), modifier = Modifier.clickable { uriHandler.openUri(url) })
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("- " + translateText("Проверить обновление можно вручную в разделе настроек О приложении", context), style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    androidx.compose.material3.Button(onClick = {
+                        val prefs = context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+                        prefs.edit().putString("skipped_update_version", info.version).apply()
+                        updateInfo = null
+                    }) {
+                        Text(translateText("Выйти и больше не спрашивать", context), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                    androidx.compose.material3.Button(onClick = {
+                        downloadAndInstallApk(context, info.apkUrl)
+                        updateInfo = null
+                    }) {
+                        Text(translateText("Обновить", context))
+                    }
+                    androidx.compose.material3.Button(onClick = { updateInfo = null }) {
+                        Text(translateText("Выход", context))
+                    }
+                }
+            }
+        )
+    }
+
     LaunchedEffect(state.currentTab) {
         if (state.currentTab != TabType.TEST) {
             isTestFullScreen = false
@@ -293,6 +460,8 @@ fun MainScreen(viewModel: RouterViewModel) {
             IperfService.stop(context.applicationContext)
         }
     }
+
+    var showExitConfirm by remember { mutableStateOf(false) }
 
     if (state.config != null) {
         if (state.isConfiguring) {
@@ -319,7 +488,40 @@ fun MainScreen(viewModel: RouterViewModel) {
             BackHandler {
                 viewModel.switchTab(TabType.DASHBOARD)
             }
+        } else if (state.currentTab == TabType.DASHBOARD) {
+            BackHandler {
+                showExitConfirm = true
+            }
         }
+    } else if (!state.isConfiguring) {
+        BackHandler {
+            showExitConfirm = true
+        }
+    }
+
+    if (showExitConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showExitConfirm = false },
+            title = { Text(translateText("Выйти из приложения?", context)) },
+            text = { Text(translateText("Вы действительно хотите закрыть приложение?", context)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { 
+                    showExitConfirm = false
+                    (context as? android.app.Activity)?.finishAffinity()
+                    kotlin.system.exitProcess(0)
+                }) {
+                    Text(translateText("Да", context))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showExitConfirm = false }) {
+                    Text(translateText("Отмена", context))
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -327,9 +529,6 @@ fun MainScreen(viewModel: RouterViewModel) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.onAppResume()
-                if (state.currentTab == TabType.CONSOLE) {
-                    viewModel.startInteractiveShellSession()
-                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -671,14 +870,15 @@ fun MainScreen(viewModel: RouterViewModel) {
                             }
                         )
                         TabType.CONSOLE -> ConsoleTab(
-                            state = state,
+                            consoleHistory = state.consoleHistory.filter { !it.command.contains("iperf3") },
+                            commandOutput = state.commandOutput,
                             sessionCommandHistory = sessionCommandHistory,
                             onCommandChange = { viewModel.setCommandInput(it) },
                             onSend = { 
                                 viewModel.sendConsoleCommand()
                                 focusManager.clearFocus()
                             },
-                            onClearHistory = { viewModel.clearConsoleLogs() },
+                            onClearHistory = { viewModel.startInteractiveShellSession() },
                             onDeleteHistoryItem = { viewModel.deleteFromSessionHistory(it) },
                             onWriteRawToConsoleStdin = { viewModel.writeRawToConsoleStdin(it) },
                             onAddHistoryItem = { viewModel.addToSessionHistory(it) }
@@ -728,8 +928,8 @@ fun MainScreen(viewModel: RouterViewModel) {
 }
 
 @Composable
-fun InternetStatusCard(
-    state: UiState, 
+fun InternetStatusCard(state: UiState,
+     
     modifier: Modifier = Modifier,
     onRefreshStatus: (() -> Unit)? = null
 ) {
@@ -1125,8 +1325,8 @@ fun Modifier.drawSimpleScrollbar(
 }
 
 @Composable
-fun TogglesCard(
-    state: UiState,
+fun TogglesCard(state: UiState,
+    
     onLedToggle: (Boolean) -> Unit,
     onMasterVpnToggle: (Boolean) -> Unit,
     onOpenVpnListDialog: () -> Unit,
@@ -1156,9 +1356,9 @@ fun TogglesCard(
             state.status.location.isEmpty() || 
             state.status.location.contains("Detecting", ignoreCase = true) ||
             state.status.location.contains("Unknown", ignoreCase = true)
-    val isNoActiveVPN = runningItems.isEmpty() || state.config?.isVpnMasterOn != true
+    val isNoActiveVPN = runningItems.isEmpty()
 
-    val isSingleVPNActive = (state.config?.isVpnMasterOn == true && runningItems.size == 1) || 
+    val isSingleVPNActive = (runningItems.size == 1) || 
             gettingDataFromRouter || 
             isNoActiveVPN
     val cardHeight = if (isSingleVPNActive) 78.dp else 130.dp
@@ -1271,7 +1471,7 @@ fun TogglesCard(
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
                             )
-                        } else if (state.config?.isVpnMasterOn == true) {
+                        } else if (runningItems.isNotEmpty()) {
                             if (runningItems.isNotEmpty()) {
                                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                                     val fits = runningItems.size <= 2
@@ -2299,8 +2499,8 @@ fun TelemetryCard(state: UiState, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun DashboardTab(
-    state: UiState,
+fun DashboardTab(state: UiState,
+    
     onLedToggle: (Boolean) -> Unit,
     onMasterVpnToggle: (Boolean) -> Unit,
     onOpenVpnListDialog: () -> Unit,
@@ -2857,7 +3057,9 @@ fun parseAnsiToAnnotatedString(text: String): AnnotatedString {
 
 @Composable
 fun ConsoleTab(
-    state: UiState,
+    consoleHistory: List<com.example.data.ConsoleLog>,
+    commandOutput: String,
+    
     sessionCommandHistory: List<String> = emptyList(),
     onCommandChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -2890,6 +3092,7 @@ fun ConsoleTab(
     val decreaseBtnFocusRequester = remember { FocusRequester() }
     val increaseBtnFocusRequester = remember { FocusRequester() }
     val copyBtnFocusRequester = remember { FocusRequester() }
+    val pasteBtnFocusRequester = remember { FocusRequester() }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val isTv = remember {
@@ -2897,6 +3100,68 @@ fun ConsoleTab(
     }
     val primaryColor = MaterialTheme.colorScheme.primary
     val locale = remember { context.resources.configuration.locales[0].language }
+
+    var showBatteryOptDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+        val isIgnoring = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            pm.isIgnoringBatteryOptimizations(context.packageName)
+        } else true
+        
+        if (!isIgnoring) {
+            val prefs = context.getSharedPreferences("router_prefs", android.content.Context.MODE_PRIVATE)
+            if (!prefs.getBoolean("battery_optimization_requested", false)) {
+                showBatteryOptDialog = true
+            }
+        }
+    }
+
+    if (showBatteryOptDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showBatteryOptDialog = false
+                context.getSharedPreferences("router_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit().putBoolean("battery_optimization_requested", true).apply()
+            },
+            title = { Text(if (locale == "ru") "Фоновое подключение" else "Background Connection") },
+            text = { Text(if (locale == "ru") "Для удержания SSH-соединения при сворачивании приложения необходимо отключить оптимизацию батареи для этого приложения. Разрешить?" else "To keep the SSH connection alive when the app is minimized, you need to disable battery optimization for this app. Allow?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBatteryOptDialog = false
+                        context.getSharedPreferences("router_prefs", android.content.Context.MODE_PRIVATE)
+                            .edit().putBoolean("battery_optimization_requested", true).apply()
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                            val intent = android.content.Intent(
+                                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                android.net.Uri.parse("package:${context.packageName}")
+                            )
+                            try {
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                android.util.Log.e("BatteryOpt", "Failed to start intent: ${e.message}")
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (locale == "ru") "Разрешить" else "Allow")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showBatteryOptDialog = false
+                        context.getSharedPreferences("router_prefs", android.content.Context.MODE_PRIVATE)
+                            .edit().putBoolean("battery_optimization_requested", true).apply()
+                    }
+                ) {
+                    Text(if (locale == "ru") "Позже" else "Later")
+                }
+            }
+        )
+    }
+
     val favoritePrefs = remember(context) { context.getSharedPreferences("console_favorite_commands_prefs", android.content.Context.MODE_PRIVATE) }
     var favoritesList by remember {
         mutableStateOf(
@@ -2939,9 +3204,9 @@ fun ConsoleTab(
     val msgEmpty = remember(locale) { IperfLocalizations.getMsgEmpty(locale) }
 
     // Automatically scroll to bottom when history or command output gets updated
-    LaunchedEffect(state.consoleHistory.size, state.commandOutput) {
-        if (state.consoleHistory.isNotEmpty()) {
-            listState.animateScrollToItem(0)
+    LaunchedEffect(consoleHistory.size, consoleHistory.firstOrNull()?.output, commandOutput) {
+        if (consoleHistory.isNotEmpty()) {
+            listState.scrollToItem(0)
         }
     }
 
@@ -3073,7 +3338,7 @@ fun ConsoleTab(
                 val copySuccessMsg = translateText("Текст скопирован в буфер обмена", context)
                 IconButton(
                     onClick = {
-                        val allText = state.consoleHistory.asReversed().joinToString("\n\n") { log ->
+                        val allText = consoleHistory.asReversed().joinToString("\n\n") { log ->
                             "root@openwrt:~# ${log.command}\n${log.output}"
                         }
                         clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(allText))
@@ -3085,6 +3350,7 @@ fun ConsoleTab(
                         .focusRequester(copyBtnFocusRequester)
                         .focusProperties {
                             left = increaseBtnFocusRequester
+                            right = pasteBtnFocusRequester
                         }
                         .onFocusChanged { isCopyBtnFocused = it.isFocused }
                         .border(
@@ -3100,6 +3366,48 @@ fun ConsoleTab(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+                var isPasteBtnFocused by remember { mutableStateOf(false) }
+                IconButton(
+                    onClick = {
+                        clipboardManager.getText()?.text?.let { pasteText ->
+                            pasteText.forEach { char ->
+                                val toSend = if (char == '\n') "\r" else char.toString()
+                                onWriteRawToConsoleStdin(toSend)
+                                if (char == '\n' || char == '\r') {
+                                    val cmd = currentTypedLine.trim()
+                                    if (cmd.isNotEmpty()) {
+                                        lastEnteredCommand = cmd
+                                        onAddHistoryItem(cmd)
+                                    }
+                                    currentTypedLine = ""
+                                } else {
+                                    currentTypedLine += char
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("paste_console_btn")
+                        .focusRequester(pasteBtnFocusRequester)
+                        .focusProperties {
+                            left = copyBtnFocusRequester
+                            right = clearButtonFocusRequester
+                        }
+                        .onFocusChanged { isPasteBtnFocused = it.isFocused }
+                        .border(
+                            width = 2.dp,
+                            color = if (isPasteBtnFocused) Color.White else Color.Transparent,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                ) {
+                    Icon(
+                        imageVector = PasteIcon,
+                        contentDescription = translateText("Вставить", context),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 var isClearBtnFocused by remember { mutableStateOf(false) }
                 IconButton(
                     onClick = onClearHistory,
@@ -3107,6 +3415,9 @@ fun ConsoleTab(
                         .size(36.dp)
                         .testTag("clear_console_btn")
                         .focusRequester(clearButtonFocusRequester)
+                        .focusProperties {
+                            left = pasteBtnFocusRequester
+                        }
                         .onFocusChanged { isClearBtnFocused = it.isFocused }
                         .border(
                             width = 2.dp,
@@ -3124,13 +3435,22 @@ fun ConsoleTab(
         }
 
         // Terminal Output container (Hacker styled Green on black)
-        val focusRequester = remember { FocusRequester() }
-        val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        var terminalView by remember { mutableStateOf<com.example.ui.TerminalInputView?>(null) }
+        val imm = context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
 
-        LaunchedEffect(Unit) {
-            kotlinx.coroutines.delay(300)
-            focusRequester.requestFocus()
-            keyboardController?.show()
+        LaunchedEffect(terminalView) {
+            if (terminalView != null) {
+                kotlinx.coroutines.delay(300)
+                terminalView?.requestFocus()
+                                    terminalView?.let { 
+                        imm.restartInput(it)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                            it.windowInsetsController?.show(android.view.WindowInsets.Type.ime())
+                        } else {
+                            imm.showSoftInput(it, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT) 
+                        }
+                    }
+            }
         }
 
         Box(
@@ -3145,123 +3465,115 @@ fun ConsoleTab(
                     shape = RoundedCornerShape(12.dp)
                 )
                 .clickable {
-                    focusRequester.requestFocus()
-                    keyboardController?.show()
+                    terminalView?.requestFocus()
+                                        terminalView?.let { 
+                        imm.restartInput(it)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                            it.windowInsetsController?.show(android.view.WindowInsets.Type.ime())
+                        } else {
+                            imm.showSoftInput(it, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT) 
+                        }
+                    }
                 }
                 .padding(12.dp)
         ) {
-            var alternateState by remember { mutableStateOf(false) }
-            val initialText = if (alternateState) "   " else "  "
-            val initialSelection = if (alternateState) TextRange(2) else TextRange(1)
-            var terminalInputState by remember { mutableStateOf(TextFieldValue(initialText, selection = initialSelection)) }
-
-            val transparentSelectionColors = TextSelectionColors(
-                handleColor = Color.Transparent,
-                backgroundColor = Color.Transparent
-            )
-
-            CompositionLocalProvider(LocalTextSelectionColors provides transparentSelectionColors) {
-                BasicTextField(
-                    value = terminalInputState,
-                    onValueChange = { newValue ->
-                        val newText = newValue.text
-                        val oldText = terminalInputState.text
-                        if (newText != oldText) {
-                            if (newText.length > oldText.length) {
-                                val diff = newText.length - oldText.length
-                                val added = if (newValue.selection.start >= diff) {
-                                    newText.substring(newValue.selection.start - diff, newValue.selection.start)
-                                } else {
-                                    newText.replace(oldText, "")
+            val clipboardManagerLocal = androidx.compose.ui.platform.LocalClipboardManager.current
+            
+            androidx.compose.ui.viewinterop.AndroidView(
+                factory = { ctx ->
+                    com.example.ui.TerminalInputView(ctx).apply {
+                        terminalView = this
+                    }
+                },
+                update = { view ->
+                    view.onProcessIncomingText = { insertedText ->
+                        for (char in insertedText) {
+                            val toSend = if (char == '\n') "\r" else char.toString()
+                            onWriteRawToConsoleStdin(toSend)
+                            if (char == '\n' || char == '\r') {
+                                val cmd = currentTypedLine.trim()
+                                if (cmd.isNotEmpty()) {
+                                    lastEnteredCommand = cmd
+                                    onAddHistoryItem(cmd)
                                 }
-                                for (char in added) {
-                                    val toSend = if (char == '\n') "\r" else char.toString()
-                                    onWriteRawToConsoleStdin(toSend)
-                                    if (char == '\n' || char == '\r') {
-                                        val cmd = currentTypedLine.trim()
-                                        if (cmd.isNotEmpty()) {
-                                            lastEnteredCommand = cmd
-                                            onAddHistoryItem(cmd)
-                                        }
-                                        currentTypedLine = ""
-                                    } else {
-                                        currentTypedLine += char
-                                    }
-                                }
-                            } else if (newText.length < oldText.length) {
-                                val diff = oldText.length - newText.length
-                                repeat(diff) {
-                                    onWriteRawToConsoleStdin("\u007F")
-                                    if (currentTypedLine.isNotEmpty()) {
-                                        currentTypedLine = currentTypedLine.dropLast(1)
-                                    }
-                                }
+                                currentTypedLine = ""
+                            } else {
+                                currentTypedLine += char
                             }
-                            alternateState = !alternateState
-                            val nextText = if (alternateState) "   " else "  "
-                            val nextSelection = if (alternateState) TextRange(2) else TextRange(1)
-                            terminalInputState = TextFieldValue(nextText, selection = nextSelection)
-                        } else {
-                            val nextText = if (alternateState) "   " else "  "
-                            val nextSelection = if (alternateState) TextRange(2) else TextRange(1)
-                            terminalInputState = TextFieldValue(nextText, selection = nextSelection)
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { isTerminalFocused = it.isFocused }
-                        .onKeyEvent { keyEvent ->
-                            // Intercept physical key events
-                            if (keyEvent.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
-                                val isUpDown = keyEvent.key == androidx.compose.ui.input.key.Key.DirectionUp || keyEvent.key == androidx.compose.ui.input.key.Key.DirectionDown
-                                if (isUpDown) {
-                                    if (state.consoleHistory.isNotEmpty()) {
-                                        scope.launch {
-                                            val amount = if (keyEvent.key == androidx.compose.ui.input.key.Key.DirectionUp) 150f else -150f
-                                            listState.animateScrollBy(amount)
-                                        }
+                    }
+                    view.onHandlePaste = {
+                        val pastedText = clipboardManagerLocal.getText()?.text
+                        if (pastedText != null) {
+                            view.onProcessIncomingText(pastedText.toString())
+                        }
+                    }
+                    view.onDeleteSurroundingText = { before, _ ->
+                        if (currentTypedLine.isNotEmpty()) {
+                            val actualBefore = minOf(before, currentTypedLine.length)
+                            val textToDelete = currentTypedLine.takeLast(actualBefore)
+                            val charCount = textToDelete.length
+                            repeat(charCount) {
+                                onWriteRawToConsoleStdin("\u007F")
+                            }
+                            currentTypedLine = currentTypedLine.dropLast(actualBefore)
+                        }
+                    }
+                    view.onSendKeyEvent = { keyEvent ->
+                        if (keyEvent.action == android.view.KeyEvent.ACTION_DOWN) {
+                            val isUpDown = keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP || keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN
+                            if (isUpDown) {
+                                if (consoleHistory.isNotEmpty()) {
+                                    scope.launch {
+                                        val amount = if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) -150f else 150f
+                                        listState.animateScrollBy(amount)
                                     }
-                                    true
-                                } else {
-                                    false
                                 }
+                                true
+                            } else if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_ENTER) {
+                                view.onProcessIncomingText("\r")
+                                true
+                            } else if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DEL) {
+                                view.onDeleteSurroundingText(1, 0)
+                                true
                             } else {
                                 false
                             }
-                        },
-                    keyboardOptions = KeyboardOptions(
-                        autoCorrectEnabled = false,
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.None
-                    ),
-                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.Transparent),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent),
-                    decorationBox = { innerTextField ->
-                        Box(modifier = Modifier.fillMaxSize()) {
+                        } else {
+                            false
+                        }
+                    }
+                    view.setOnFocusChangeListener { _, hasFocus ->
+                        isTerminalFocused = hasFocus
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            Box(modifier = Modifier.fillMaxSize()) {
                             // Render logs
-                            if (state.consoleHistory.isEmpty()) {
+                            if (consoleHistory.isEmpty()) {
                                 Box(
                                     modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
+                                    contentAlignment = Alignment.BottomStart
                                 ) {
                                     Text(
-                                        text = translateText("Кликните здесь, чтобы открыть клавиатуру и начать ввод...", context),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color(0xFF64D2FF).copy(alpha = 0.6f),
-                                        textAlign = TextAlign.Center,
-                                        fontFamily = FontFamily.Monospace
+                                        text = translateText("Подключение к интерактивной оболочке SSH...", context),
+                                        color = Color(0xFF30D158),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = (terminalFontSize + 1f).sp,
+                                        modifier = Modifier.padding(16.dp)
                                     )
                                 }
                             } else {
-                                SelectionContainer {
-                                    LazyColumn(
-                                        state = listState,
-                                        modifier = Modifier.fillMaxSize(),
-                                        reverseLayout = true,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        itemsIndexed(state.consoleHistory) { index, log ->
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    reverseLayout = true,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    itemsIndexed(consoleHistory) { index, log ->
+                                        SelectionContainer {
                                             Column(modifier = Modifier.fillMaxWidth()) {
                                                 Text(
                                                     text = "root@openwrt:~# ${log.command}",
@@ -3273,15 +3585,21 @@ fun ConsoleTab(
                                                 )
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 
+                                                val parsedOutput = androidx.compose.runtime.remember(log.output) {
+                                                    parseAnsiToAnnotatedString(log.output)
+                                                }
                                                 val isMostRecentSh = index == 0 && log.command == "sh"
-                                                val outputWithCursor = if (isMostRecentSh && cursorVisible) {
-                                                    log.output + "█"
+                                                val finalOutput = if (isMostRecentSh && cursorVisible) {
+                                                    androidx.compose.ui.text.buildAnnotatedString {
+                                                        append(parsedOutput)
+                                                        append("█")
+                                                    }
                                                 } else {
-                                                    log.output
+                                                    parsedOutput
                                                 }
                                                 
                                                 Text(
-                                                    text = parseAnsiToAnnotatedString(outputWithCursor),
+                                                    text = finalOutput,
                                                     color = Color(0xFF30D158),
                                                     fontFamily = FontFamily.Monospace,
                                                     fontSize = terminalFontSize.sp,
@@ -3294,14 +3612,7 @@ fun ConsoleTab(
                                 }
                             }
 
-                            // Full-sized invisible layer helper to avoid tiny bounds for the IME and selection handle clipping
-                            Box(modifier = Modifier.fillMaxSize().alpha(0.01f)) {
-                                innerTextField()
-                            }
                         }
-                    }
-                )
-            }
         }
 
         // Termux-style auxiliary keyboard control bar
@@ -3362,6 +3673,7 @@ fun ConsoleTab(
                                     "CTRL" -> {
                                         // Send Ctrl+C sequence
                                         onWriteRawToConsoleStdin("\u0003")
+                                        currentTypedLine = ""
                                     }
                                     "ALT" -> {
                                         // Standard Escape prefix for ALT
@@ -3754,8 +4066,81 @@ fun ConsoleTab(
     }
 }
 
+data class UpdateInfo(val version: String, val releaseNotes: String, val apkUrl: String)
 
+suspend fun checkUpdate(lang: String): UpdateInfo? {
+    return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val url = java.net.URL("https://api.github.com/repos/Vihtoor/openwrt-router-control/releases/latest")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
+            if (connection.responseCode == 200) {
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = org.json.JSONObject(response)
+                val tagName = json.getString("tag_name")
+                var body = json.optString("body", "")
+                val assets = json.getJSONArray("assets")
+                var apkUrl = ""
+                for (i in 0 until assets.length()) {
+                    val asset = assets.getJSONObject(i)
+                    if (asset.getString("name").endsWith(".apk")) {
+                        apkUrl = asset.getString("browser_download_url")
+                        break
+                    }
+                }
+                
+                if (apkUrl.isNotEmpty()) {
+                    return@withContext UpdateInfo(tagName, body, apkUrl)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        null
+    }
+}
 
+fun downloadAndInstallApk(context: android.content.Context, url: String) {
+    val fileName = "openwrt_router_control_update.apk"
+    val downloadDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
+    if (downloadDir != null && !downloadDir.exists()) {
+        downloadDir.mkdirs()
+    }
+    val file = java.io.File(downloadDir, fileName)
+    if (file.exists()) {
+        file.delete()
+    }
+
+    android.widget.Toast.makeText(context, "Загрузка обновления...", android.widget.Toast.LENGTH_SHORT).show()
+    
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        try {
+            val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connect()
+            if (connection.responseCode == 200) {
+                connection.inputStream.use { input ->
+                    java.io.FileOutputStream(file).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                    intent.setDataAndType(androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", file), "application/vnd.android.package-archive")
+                    intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                android.widget.Toast.makeText(context, "Ошибка загрузки: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
 fun getLocalIpAddress(targetIp: String? = null): String {
     if (!targetIp.isNullOrEmpty() && targetIp != "127.0.0.1") {
         try {
@@ -4363,7 +4748,7 @@ fun IPerfFullScreen(
                                 }
                                 var isClearFocused by remember { mutableStateOf(false) }
                                 IconButton(
-                                    onClick = { viewModel.clearConsoleLogs() },
+                                    onClick = { viewModel.startInteractiveShellSession() },
                                     modifier = Modifier
                                         .size(36.dp)
                                         .testTag("btn_clear_router_console_tablet")
@@ -4379,8 +4764,8 @@ fun IPerfFullScreen(
                                         )
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Очистить консоль",
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = translateText("Очистить и перезапустить консоль", context),
                                         tint = Color.White.copy(alpha = 0.6f),
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -4844,14 +5229,14 @@ fun IPerfFullScreen(
                                     )
                                 }
                                 IconButton(
-                                    onClick = { viewModel.clearConsoleLogs() },
+                                    onClick = { viewModel.startInteractiveShellSession() },
                                     modifier = Modifier
                                         .size(36.dp)
                                         .testTag("btn_clear_router_console_mobile")
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Очистить консоль",
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = translateText("Очистить и перезапустить консоль", context),
                                         tint = Color.White.copy(alpha = 0.6f),
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -7017,8 +7402,8 @@ fun TestTab(
 }
 
 @Composable
-fun SettingsPanel(
-    state: UiState,
+fun SettingsPanel(state: UiState,
+    
     onConnect: (String, Int, String, String) -> Unit,
     onSave: (String, Int, String, String, String, String) -> Unit,
     onDismiss: () -> Unit,
@@ -7356,6 +7741,15 @@ fun SettingsPanel(
                     Spacer(modifier = Modifier.height(16.dp))
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                     Text(
+                        text = "https://github.com/Vihtoor/openwrt-router-control",
+                        style = MaterialTheme.typography.bodySmall.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            uriHandler.openUri("https://github.com/Vihtoor/openwrt-router-control")
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
                         text = "https://4pda.to/forum/index.php?showtopic=1123422",
                         style = MaterialTheme.typography.bodySmall.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
                         color = MaterialTheme.colorScheme.primary,
@@ -7363,6 +7757,114 @@ fun SettingsPanel(
                             uriHandler.openUri("https://4pda.to/forum/index.php?showtopic=1123422")
                         }
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    var isCheckingUpdate by remember { mutableStateOf(false) }
+                    var localUpdateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+                    
+                    OutlinedButton(
+                        onClick = {
+                            isCheckingUpdate = true
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                val lang = context.resources.configuration.locales[0].language
+                                val info = checkUpdate(lang)
+                                isCheckingUpdate = false
+                                if (info != null) {
+                                    val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "v1.0.0"
+                                    val latestVer = info.version.replace("v", "").replace(".", "").toIntOrNull() ?: 0
+                                    val currentVer = currentVersion.replace("v", "").replace(".", "").toIntOrNull() ?: 0
+                                    if (latestVer > currentVer) {
+                                        localUpdateInfo = info
+                                    } else {
+                                        android.widget.Toast.makeText(context, translateText("У вас установлена последняя версия", context), android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    android.widget.Toast.makeText(context, translateText("Ошибка проверки обновлений", context), android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        if (isCheckingUpdate) {
+                            androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text(translateText("Проверить обновления", context))
+                        }
+                    }
+
+                    localUpdateInfo?.let { info ->
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { localUpdateInfo = null },
+                            title = { Text(translateText("Доступно обновление", context), fontWeight = FontWeight.Bold) },
+                            text = {
+                                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text(translateText("Найдена новая версия:", context) + " ${info.version}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                                        item {
+                                            Text(info.releaseNotes, style = MaterialTheme.typography.bodyMedium)
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            val downloadText = "- " + translateText("Скачать обновление вы можете вручную с https://github.com/Vihtoor/openwrt-router-control/releases", context)
+                                            val url = "https://github.com/Vihtoor/openwrt-router-control/releases"
+                                            val startIndex = downloadText.indexOf(url)
+                                            if (startIndex != -1) {
+                                                val annotatedString = androidx.compose.ui.text.buildAnnotatedString {
+                                                    append(downloadText)
+                                                    addStyle(
+                                                        style = androidx.compose.ui.text.SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+                                                        start = startIndex,
+                                                        end = startIndex + url.length
+                                                    )
+                                                    addStringAnnotation(
+                                                        tag = "URL",
+                                                        annotation = url,
+                                                        start = startIndex,
+                                                        end = startIndex + url.length
+                                                    )
+                                                }
+                                                androidx.compose.foundation.text.ClickableText(
+                                                    text = annotatedString,
+                                                    onClick = { offset ->
+                                                        annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                                                            .firstOrNull()?.let { annotation ->
+                                                                uriHandler.openUri(annotation.item)
+                                                            }
+                                                    },
+                                                    style = MaterialTheme.typography.bodySmall.copy(color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                                                )
+                                            } else {
+                                                Text(downloadText, style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50), modifier = Modifier.clickable { uriHandler.openUri(url) })
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text("- " + translateText("Проверить обновление можно вручную в разделе настроек О приложении", context), style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    androidx.compose.material3.Button(onClick = {
+                                        val prefs = context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+                                        prefs.edit().putString("skipped_update_version", info.version).apply()
+                                        localUpdateInfo = null
+                                    }) {
+                                        Text(translateText("Выйти и больше не спрашивать", context), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                    }
+                                    androidx.compose.material3.Button(onClick = {
+                                        downloadAndInstallApk(context, info.apkUrl)
+                                        localUpdateInfo = null
+                                        showAboutDialog = false
+                                    }) {
+                                        Text(translateText("Обновить", context))
+                                    }
+                                    androidx.compose.material3.Button(onClick = { localUpdateInfo = null }) {
+                                        Text(translateText("Выход", context))
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -7455,6 +7957,295 @@ fun Icon(
 fun translateText(raw: String, context: android.content.Context): String {
     val lang = context.resources.configuration.locales[0].language
     return when (raw) {
+        "Подключение к интерактивной оболочке SSH..." -> when (lang) {
+            "ru" -> "Подключение к интерактивной оболочке SSH..."
+            "uk" -> "Підключення до інтерактивної оболонки SSH..."
+            "be" -> "Падключэнне да інтэрактыўнай абалонкі SSH..."
+            "de" -> "Verbindung zur interaktiven SSH-Shell..."
+            "es" -> "Conectando al shell interactivo SSH..."
+            "fr" -> "Connexion au shell interactif SSH..."
+            "it" -> "Connessione alla shell interattiva SSH..."
+            "pt" -> "Conectando ao shell interativo SSH..."
+            "da" -> "Opretter forbindelse til interaktiv SSH-shell..."
+            "fi" -> "Yhdistetään interaktiiviseen SSH-kuoreen..."
+            "kk" -> "SSH интерактивті қабықшасына қосылу..."
+            "lt" -> "Jungiamasi prie interaktyvaus SSH apvalkalo..."
+            "lv" -> "Notiek savienojuma izveide ar interaktīvo SSH čaulu..."
+            "sv" -> "Ansluter till interaktiv SSH-skal..."
+            else -> "Connecting to SSH interactive shell..."
+        }
+        "Очистить и перезапустить консоль" -> when (lang) {
+            "ru" -> "Очистить и перезапустить консоль"
+            "uk" -> "Очистити і перезапустити консоль"
+            "be" -> "Ачысціць і перазапусціць кансоль"
+            "de" -> "Konsole leeren und neu starten"
+            "es" -> "Limpiar y reiniciar consola"
+            "fr" -> "Effacer et redémarrer la console"
+            "it" -> "Pulisci e riavvia console"
+            "pt" -> "Limpar e reiniciar console"
+            "da" -> "Ryd og genstart konsol"
+            "fi" -> "Tyhjennä ja käynnistä konsoli uudelleen"
+            "kk" -> "Консольді тазалау және қайта іске қосу"
+            "lt" -> "Išvalyti ir paleisti konsolę iš naujo"
+            "lv" -> "Notīrīt un restartēt konsoli"
+            "sv" -> "Rensa och starta om konsolen"
+            else -> "Clear and restart console"
+        }
+        "Выйти из приложения?" -> when (lang) {
+            "ru" -> "Выйти из приложения?"
+            "uk" -> "Вийти з програми?"
+            "be" -> "Выйсці з праграмы?"
+            "de" -> "App beenden?"
+            "es" -> "¿Salir de la aplicación?"
+            "fr" -> "Quitter l'application ?"
+            "it" -> "Uscire dall'applicazione?"
+            "pt" -> "Sair do aplicativo?"
+            "da" -> "Afslut appen?"
+            "fi" -> "Lopeta sovellus?"
+            "kk" -> "Қолданбадан шығу керек пе?"
+            "lt" -> "Išeiti iš programos?"
+            "lv" -> "Iziet no lietotnes?"
+            "sv" -> "Avsluta appen?"
+            else -> "Exit application?"
+        }
+        "Вы действительно хотите закрыть приложение?" -> when (lang) {
+            "ru" -> "Вы действительно хотите закрыть приложение?"
+            "uk" -> "Ви дійсно хочете закрити програму?"
+            "be" -> "Вы сапраўды хочаце закрыць праграму?"
+            "de" -> "Möchten Sie die App wirklich schließen?"
+            "es" -> "¿Realmente quieres cerrar la aplicación?"
+            "fr" -> "Voulez-vous vraiment fermer l'application ?"
+            "it" -> "Vuoi davvero chiudere l'applicazione?"
+            "pt" -> "Deseja realmente fechar o aplicativo?"
+            "da" -> "Vil du virkelig lukke appen?"
+            "fi" -> "Haluatko varmasti sulkea sovelluksen?"
+            "kk" -> "Қолданбаны шынымен жапқыңыз келе ме?"
+            "lt" -> "Ar tikrai norite uždaryti programą?"
+            "lv" -> "Vai tiešām vēlaties aizvērt lietotni?"
+            "sv" -> "Vill du verkligen stänga appen?"
+            else -> "Do you really want to close the application?"
+        }
+        "Да" -> when (lang) {
+            "ru" -> "Да"
+            "uk" -> "Так"
+            "be" -> "Так"
+            "de" -> "Ja"
+            "es" -> "Sí"
+            "fr" -> "Oui"
+            "it" -> "Sì"
+            "pt" -> "Sim"
+            "da" -> "Ja"
+            "fi" -> "Kyllä"
+            "kk" -> "Иә"
+            "lt" -> "Taip"
+            "lv" -> "Jā"
+            "sv" -> "Ja"
+            else -> "Yes"
+        }
+        "Отмена" -> when (lang) {
+            "ru" -> "Отмена"
+            "uk" -> "Скасувати"
+            "be" -> "Адмена"
+            "de" -> "Abbrechen"
+            "es" -> "Cancelar"
+            "fr" -> "Annuler"
+            "it" -> "Annulla"
+            "pt" -> "Cancelar"
+            "da" -> "Annuller"
+            "fi" -> "Peruuta"
+            "kk" -> "Бас тарту"
+            "lt" -> "Atšaukti"
+            "lv" -> "Atcelt"
+            "sv" -> "Avbryt"
+            else -> "Cancel"
+        }
+        "Вставить" -> when (lang) {
+            "ru" -> "Вставить"
+            "uk" -> "Вставити"
+            "be" -> "Уставіць"
+            "de" -> "Einfügen"
+            "es" -> "Pegar"
+            "fr" -> "Coller"
+            "it" -> "Incolla"
+            "pt" -> "Colar"
+            "da" -> "Sæt ind"
+            "fi" -> "Liitä"
+            "kk" -> "Қою"
+            "lt" -> "Įklijuoti"
+            "lv" -> "Ielīmēt"
+            "sv" -> "Klistra in"
+            else -> "Paste"
+        }
+        "Доступно обновление" -> when (lang) {
+            "ru" -> "Доступно обновление"
+            "uk" -> "Доступне оновлення"
+            "be" -> "Даступна абнаўленне"
+            "de" -> "Update verfügbar"
+            "es" -> "Actualización disponible"
+            "fr" -> "Mise à jour disponible"
+            "it" -> "Aggiornamento disponibile"
+            "pt" -> "Atualização disponível"
+            "da" -> "Opdatering tilgængelig"
+            "fi" -> "Päivitys saatavilla"
+            "kk" -> "Жаңарту қолжетімді"
+            "lt" -> "Galimas atnaujinimas"
+            "lv" -> "Pieejams atjauninājums"
+            "sv" -> "Uppdatering tillgänglig"
+            else -> "Update available"
+        }
+        "Найдена новая версия:" -> when (lang) {
+            "ru" -> "Найдена новая версия:"
+            "uk" -> "Знайдено нову версію:"
+            "be" -> "Знойдзена новая версія:"
+            "de" -> "Neue Version gefunden:"
+            "es" -> "Nueva versión encontrada:"
+            "fr" -> "Nouvelle version trouvée :"
+            "it" -> "Nuova versione trovata:"
+            "pt" -> "Nova versão encontrada:"
+            "da" -> "Ny version fundet:"
+            "fi" -> "Uusi versio löytyi:"
+            "kk" -> "Жаңа нұсқа табылды:"
+            "lt" -> "Rasta nauja versija:"
+            "lv" -> "Atrasta jauna versija:"
+            "sv" -> "Ny version hittades:"
+            else -> "New version found:"
+        }
+        "Обновить" -> when (lang) {
+            "ru" -> "Обновить"
+            "uk" -> "Оновити"
+            "be" -> "Абнавіць"
+            "de" -> "Aktualisieren"
+            "es" -> "Actualizar"
+            "fr" -> "Mettre à jour"
+            "it" -> "Aggiorna"
+            "pt" -> "Atualizar"
+            "da" -> "Opdater"
+            "fi" -> "Päivitä"
+            "kk" -> "Жаңарту"
+            "lt" -> "Atnaujinti"
+            "lv" -> "Atjaunināt"
+            "sv" -> "Uppdatera"
+            else -> "Update"
+        }
+        "Выход" -> when (lang) {
+            "ru" -> "Выход"
+            "uk" -> "Вихід"
+            "be" -> "Выхад"
+            "de" -> "Beenden"
+            "es" -> "Salir"
+            "fr" -> "Quitter"
+            "it" -> "Esci"
+            "pt" -> "Sair"
+            "da" -> "Afslut"
+            "fi" -> "Poistu"
+            "kk" -> "Шығу"
+            "lt" -> "Išeiti"
+            "lv" -> "Iziet"
+            "sv" -> "Avsluta"
+            else -> "Exit"
+        }
+        "Проверить обновления" -> when (lang) {
+            "ru" -> "Проверить обновления"
+            "uk" -> "Перевірити оновлення"
+            "be" -> "Праверыць абнаўленні"
+            "de" -> "Auf Updates prüfen"
+            "es" -> "Buscar actualizaciones"
+            "fr" -> "Vérifier les mises à jour"
+            "it" -> "Controlla aggiornamenti"
+            "pt" -> "Verificar atualizações"
+            "da" -> "Søg efter opdateringer"
+            "fi" -> "Tarkista päivitykset"
+            "kk" -> "Жаңартуларды тексеру"
+            "lt" -> "Tikrinti atnaujinimus"
+            "lv" -> "Pārbaudīt atjauninājumus"
+            "sv" -> "Sök efter uppdateringar"
+            else -> "Check for updates"
+        }
+        "У вас установлена последняя версия" -> when (lang) {
+            "ru" -> "У вас установлена последняя версия"
+            "uk" -> "У вас встановлена остання версія"
+            "be" -> "У вас усталявана апошняя версія"
+            "de" -> "Sie haben die neueste Version installiert"
+            "es" -> "Tienes la última versión instalada"
+            "fr" -> "Vous avez la dernière version installée"
+            "it" -> "Hai l'ultima versione installata"
+            "pt" -> "Você tem a última versão instalada"
+            "da" -> "Du har den seneste version installeret"
+            "fi" -> "Sinulla on uusin versio asennettuna"
+            "kk" -> "Сізде соңғы нұсқасы орнатылған"
+            "lt" -> "Įdiegta naujausia versija"
+            "lv" -> "Jums ir instalēta jaunākā versija"
+            "sv" -> "Du har den senaste versionen installerad"
+            else -> "You have the latest version installed"
+        }
+        "Ошибка проверки обновлений" -> when (lang) {
+            "ru" -> "Ошибка проверки обновлений"
+            "uk" -> "Помилка перевірки оновлень"
+            "be" -> "Памылка праверкі абнаўленняў"
+            "de" -> "Fehler bei der Update-Prüfung"
+            "es" -> "Error al buscar actualizaciones"
+            "fr" -> "Erreur lors de la vérification des mises à jour"
+            "it" -> "Errore durante il controllo degli aggiornamenti"
+            "pt" -> "Erro ao verificar atualizações"
+            "da" -> "Fejl ved søgning efter opdateringer"
+            "fi" -> "Virhe tarkistettaessa päivityksiä"
+            "kk" -> "Жаңартуларды тексеру қатесі"
+            "lt" -> "Klaida tikrinant atnaujinimus"
+            "lv" -> "Kļūda, pārbaudot atjauninājumus"
+            "sv" -> "Fel vid sökning efter uppdateringar"
+            else -> "Error checking for updates"
+        }
+        "Выйти и больше не спрашивать" -> when (lang) {
+            "ru" -> "Выйти и больше не спрашивать"
+            "uk" -> "Вийти і більше не питати"
+            "be" -> "Выйсці і больш не пытацца"
+            "de" -> "Beenden und nicht mehr fragen"
+            "es" -> "Salir y no volver a preguntar"
+            "fr" -> "Quitter et ne plus demander"
+            "it" -> "Esci e non chiedere più"
+            "pt" -> "Sair e não perguntar mais"
+            "da" -> "Afslut og spørg ikke igen"
+            "fi" -> "Poistu äläkä kysy uudelleen"
+            "kk" -> "Шығу және қайта сұрамау"
+            "lt" -> "Išeiti ir daugiau neklausti"
+            "lv" -> "Iziet un vairs nejautāt"
+            "sv" -> "Avsluta och fråga inte igen"
+            else -> "Exit and do not ask again"
+        }
+        "Скачать обновление вы можете вручную с https://github.com/Vihtoor/openwrt-router-control/releases" -> when (lang) {
+            "ru" -> "Скачать обновление вы можете вручную с https://github.com/Vihtoor/openwrt-router-control/releases"
+            "uk" -> "Завантажити оновлення ви можете вручну з https://github.com/Vihtoor/openwrt-router-control/releases"
+            "be" -> "Сцягнуць абнаўленне вы можаце ўручную з https://github.com/Vihtoor/openwrt-router-control/releases"
+            "de" -> "Sie können das Update manuell herunterladen von https://github.com/Vihtoor/openwrt-router-control/releases"
+            "es" -> "Puede descargar la actualización manualmente desde https://github.com/Vihtoor/openwrt-router-control/releases"
+            "fr" -> "Vous pouvez télécharger la mise à jour manuellement depuis https://github.com/Vihtoor/openwrt-router-control/releases"
+            "it" -> "Puoi scaricare l'aggiornamento manualmente da https://github.com/Vihtoor/openwrt-router-control/releases"
+            "pt" -> "Você pode baixar a atualização manualmente de https://github.com/Vihtoor/openwrt-router-control/releases"
+            "da" -> "Du kan downloade opdateringen manuelt fra https://github.com/Vihtoor/openwrt-router-control/releases"
+            "fi" -> "Voit ladata päivityksen manuaalisesti osoitteesta https://github.com/Vihtoor/openwrt-router-control/releases"
+            "kk" -> "Жаңартуды қолмен https://github.com/Vihtoor/openwrt-router-control/releases сілтемесінен жүктей аласыз"
+            "lt" -> "Atnaujinimą galite atsisiųsti rankiniu būdu iš https://github.com/Vihtoor/openwrt-router-control/releases"
+            "lv" -> "Atjauninājumu varat lejupielādēt manuāli no https://github.com/Vihtoor/openwrt-router-control/releases"
+            "sv" -> "Du kan ladda ner uppdateringen manuellt från https://github.com/Vihtoor/openwrt-router-control/releases"
+            else -> "You can download the update manually from https://github.com/Vihtoor/openwrt-router-control/releases"
+        }
+        "Проверить обновление можно вручную в разделе настроек О приложении" -> when (lang) {
+            "ru" -> "Проверить обновление можно вручную в разделе настроек О приложении"
+            "uk" -> "Перевірити оновлення можна вручну в розділі налаштувань Про програму"
+            "be" -> "Праверыць абнаўленне можна ўручную ў раздзеле налад Пра праграму"
+            "de" -> "Sie können manuell im Einstellungsbereich 'Über die App' nach Updates suchen"
+            "es" -> "Puede buscar actualizaciones manualmente en la sección de configuración Acerca de la aplicación"
+            "fr" -> "Vous pouvez vérifier manuellement les mises à jour dans la section Paramètres À propos de l'application"
+            "it" -> "Puoi controllare manualmente gli aggiornamenti nella sezione delle impostazioni Informazioni sull'app"
+            "pt" -> "Você pode verificar as atualizações manualmente na seção de configurações Sobre o aplicativo"
+            "da" -> "Du kan søge efter opdateringer manuelt i indstillingssektionen Om appen"
+            "fi" -> "Voit tarkistaa päivitykset manuaalisesti Tietoja sovelluksesta -asetusosiossa"
+            "kk" -> "Жаңартуды Қолданба туралы параметрлер бөлімінде қолмен тексеруге болады"
+            "lt" -> "Atnaujinimus galite patikrinti rankiniu būdu nustatymų skiltyje Apie programą"
+            "lv" -> "Atjauninājumus varat pārbaudīt manuāli iestatījumu sadaļā Par lietotni"
+            "sv" -> "Du kan söka efter uppdateringar manuellt i inställningsavsnittet Om appen"
+            else -> "You can check for updates manually in the About app settings section"
+        }
         "Выберите DNS для использования на роутере." -> {
             when (lang) {
                 "ru" -> "Выберите DNS для использования на роутере."

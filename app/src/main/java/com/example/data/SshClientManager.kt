@@ -45,68 +45,43 @@ class SshClientManager {
     private var activeShellStdin: java.io.OutputStream? = null
     private var shellJob: Job? = null
 
-    fun writeToStdin(text: String): Boolean {
-        val shellStdin = activeShellStdin
-        val shellChan = activeShellChannel
-        if (shellChan != null && shellChan.isConnected && shellStdin != null) {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                try {
-                    shellStdin.write((text + "\n").toByteArray(Charsets.UTF_8))
-                    shellStdin.flush()
-                } catch (e: Exception) {
-                    Log.e("SshClientManager", "Failed to write to shell stdin: ${e.message}")
-                }
-            }
-            return true
-        }
+    private val writeChannel = kotlinx.coroutines.channels.Channel<ByteArray>(
+        kotlinx.coroutines.channels.Channel.UNLIMITED
+    )
+    private val writerScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob()
+    )
 
-        val stdin = activeStdin
-        val chan = activeChannel
-        if (chan != null && chan.isConnected && stdin != null) {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+    init {
+        writerScope.launch {
+            for (bytes in writeChannel) {
+                val stdin = activeShellStdin ?: activeStdin ?: continue
                 try {
-                    stdin.write((text + "\n").toByteArray(Charsets.UTF_8))
+                    stdin.write(bytes)
                     stdin.flush()
-                    resetTimeoutRequested = true
                 } catch (e: Exception) {
                     Log.e("SshClientManager", "Failed to write to stdin: ${e.message}")
                 }
             }
-            return true
         }
-        return false
+    }
+
+    fun writeToStdin(text: String): Boolean {
+        val bytes = (text + "\n").toByteArray(Charsets.UTF_8)
+        val success = writeChannel.trySend(bytes).isSuccess
+        if (success && activeShellChannel == null && activeChannel != null) {
+            resetTimeoutRequested = true
+        }
+        return success
     }
 
     fun writeRawToStdin(text: String): Boolean {
-        val shellStdin = activeShellStdin
-        val shellChan = activeShellChannel
-        if (shellChan != null && shellChan.isConnected && shellStdin != null) {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                try {
-                    shellStdin.write(text.toByteArray(Charsets.UTF_8))
-                    shellStdin.flush()
-                } catch (e: Exception) {
-                    Log.e("SshClientManager", "Failed to write raw to shell stdin: ${e.message}")
-                }
-            }
-            return true
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        val success = writeChannel.trySend(bytes).isSuccess
+        if (success && activeShellChannel == null && activeChannel != null) {
+            resetTimeoutRequested = true
         }
-
-        val stdin = activeStdin
-        val chan = activeChannel
-        if (chan != null && chan.isConnected && stdin != null) {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                try {
-                    stdin.write(text.toByteArray(Charsets.UTF_8))
-                    stdin.flush()
-                    resetTimeoutRequested = true
-                } catch (e: Exception) {
-                    Log.e("SshClientManager", "Failed to write raw to stdin: ${e.message}")
-                }
-            }
-            return true
-        }
-        return false
+        return success
     }
 
     suspend fun testConnection(config: RouterConfig): Boolean = withContext(Dispatchers.IO) {
@@ -135,9 +110,11 @@ class SshClientManager {
             
             val properties = Properties()
             properties["StrictHostKeyChecking"] = "no"
+            properties["TCPKeepAlive"] = "yes"
             session.setConfig(properties)
             session.timeout = 5000 // 5 seconds connect timeout
-            session.serverAliveInterval = 15000 // send keep-alive every 15s
+            session.serverAliveInterval = 30000 // send keep-alive every 30s
+            session.serverAliveCountMax = 3 // disconnect after 3 missed keepalives
             session.connect()
 
             activeSession = session
@@ -158,7 +135,7 @@ class SshClientManager {
             channel = session.openChannel("exec") as ChannelExec
             channel.setPtyType("xterm-256color")
             channel.setPty(true)
-            channel.setPtySize(80, 24, 640, 480)
+            channel.setPtySize(1000, 100, 0, 0)
             val wrappedCommand = "export PATH=\"/usr/sbin:/usr/bin:/sbin:/bin:\$PATH\"; if ! command -v tty >/dev/null 2>&1; then tty() { if [ -n \"\$SSH_TTY\" ]; then echo \"\$SSH_TTY\"; else echo \"not a tty\"; return 1; fi; }; fi; $command"
             channel.setCommand(wrappedCommand)
 
@@ -237,7 +214,7 @@ class SshClientManager {
                 val channel = session.openChannel("shell") as ChannelShell
                 channel.setPtyType("xterm-256color")
                 channel.setPty(true)
-                channel.setPtySize(80, 24, 640, 480)
+                channel.setPtySize(1000, 100, 0, 0)
 
                 val shellStdin = channel.outputStream
                 val shellStdout = channel.inputStream
@@ -248,12 +225,13 @@ class SshClientManager {
                 channel.connect(5000)
 
                 shellJob = CoroutineScope(Dispatchers.IO).launch {
-                    val buffer = ByteArray(4096)
+                    val reader = shellStdout.reader(Charsets.UTF_8)
+                    val buffer = CharArray(4096)
                     try {
-                        while (isActive && channel.isConnected) {
-                            val read = shellStdout.read(buffer)
+                        while (isActive) {
+                            val read = reader.read(buffer)
                             if (read > 0) {
-                                val text = String(buffer, 0, read, Charsets.UTF_8)
+                                val text = String(buffer, 0, read)
                                 onOutput(text)
                             } else if (read < 0) {
                                 break

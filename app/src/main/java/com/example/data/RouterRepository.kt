@@ -170,7 +170,9 @@ class RouterRepository(
                 !lower.contains("ps |") &&
                 !lower.contains("sh -c") &&
                 !lower.contains("bin/sh") &&
-                !lower.contains("ps ")
+                !lower.contains("ps ") &&
+                !lower.contains("uci ") &&
+                !lower.contains("export path=")
             }
             val vpnInstanceName = if (isOpenVpnActive) extractOpenVpnInstanceName(openVpnPart) else null
             val activeOpenVpnNamesSet = if (isOpenVpnActive) extractAllOpenVpnInstanceNames(openVpnPart) else emptySet()
@@ -350,7 +352,9 @@ class RouterRepository(
                     !lower.contains("ps |") &&
                     !lower.contains("sh -c") &&
                     !lower.contains("bin/sh") &&
-                    !lower.contains("ps ")
+                    !lower.contains("ps ") &&
+                    !lower.contains("uci ") &&
+                    !lower.contains("export path=")
             
             if (isProcessLine) {
                 var foundInLine = false
