@@ -37,15 +37,19 @@ class RouterRepository(
         @Volatile var hasUciTriggerError: Boolean = false
     }
 
-    val routerConfigFlow: Flow<RouterConfig?> = dao.getRouterConfigFlow()
+    val routerConfigFlow: Flow<RouterConfig?> = dao.getActiveRouterConfigFlow()
+    val allRouterConfigsFlow: Flow<List<RouterConfig>> = dao.getAllRouterConfigsFlow()
     val consoleLogsFlow: Flow<List<ConsoleLog>> = dao.getConsoleLogsFlow()
 
-    suspend fun saveRouterConfig(config: RouterConfig) {
-        dao.saveRouterConfig(config)
+    suspend fun saveRouterConfig(config: RouterConfig): Long {
+        if (config.isActive) {
+            dao.deactivateAll()
+        }
+        return dao.saveRouterConfig(config)
     }
 
-    suspend fun deleteRouterConfig() {
-        dao.deleteRouterConfig()
+    suspend fun deleteRouterConfig(id: Int) {
+        dao.deleteRouterConfig(id)
         sshClientManager.disconnect()
     }
 
@@ -111,6 +115,27 @@ class RouterRepository(
         }
     }
 
+private fun isValidOpenVpnProcessLine(line: String): Boolean {
+        val lower = line.lowercase()
+        return lower.contains("openvpn") && 
+            !lower.contains("grep") && 
+            !lower.contains("echo") && 
+            !lower.contains("ps |") &&
+            !lower.contains("sh -c") &&
+            !lower.contains("bin/sh") &&
+            !lower.contains("ps ") &&
+            !lower.contains("uci ") &&
+            !lower.contains("export path=") &&
+            !lower.contains("/etc/init.d/openvpn") &&
+            !lower.contains("logread") &&
+            !lower.contains("tail ") &&
+            !lower.contains("cat ") &&
+            !lower.contains("vi ") &&
+            !lower.contains("nano ") &&
+            !lower.contains("awk ") &&
+            !lower.contains("sed ")
+    }
+
     private fun extractSection(input: String, startTag: String, endTag: String?): String {
         val startIndex = input.indexOf(startTag)
         if (startIndex == -1) return ""
@@ -163,16 +188,7 @@ class RouterRepository(
             
             // Parse OpenVPN
             val isOpenVpnActive = openVpnPart.lines().any { line ->
-                val lower = line.lowercase()
-                lower.contains("openvpn") && 
-                !lower.contains("grep") && 
-                !lower.contains("echo") && 
-                !lower.contains("ps |") &&
-                !lower.contains("sh -c") &&
-                !lower.contains("bin/sh") &&
-                !lower.contains("ps ") &&
-                !lower.contains("uci ") &&
-                !lower.contains("export path=")
+                isValidOpenVpnProcessLine(line)
             }
             val vpnInstanceName = if (isOpenVpnActive) extractOpenVpnInstanceName(openVpnPart) else null
             val activeOpenVpnNamesSet = if (isOpenVpnActive) extractAllOpenVpnInstanceNames(openVpnPart) else emptySet()
@@ -250,14 +266,7 @@ class RouterRepository(
                 val openVpnCheck = try {
                     val res = sshClientManager.executeCommand(config, "ps -w | grep '[o]penvpn'")
                     res.stdout.lines().any { line ->
-                        val lower = line.lowercase()
-                        lower.contains("openvpn") && 
-                        !lower.contains("grep") && 
-                        !lower.contains("echo") && 
-                        !lower.contains("ps |") &&
-                        !lower.contains("sh -c") &&
-                        !lower.contains("bin/sh") &&
-                        !lower.contains("ps ")
+                        isValidOpenVpnProcessLine(line)
                     }
                 } catch (ex: Exception) { false }
                 
@@ -345,18 +354,7 @@ class RouterRepository(
         val generalConfRegex = """/([^/\s]+)\.conf""".toRegex()
 
         for (line in psOutput.lines()) {
-            val lower = line.lowercase()
-            val isProcessLine = lower.contains("openvpn") && 
-                    !lower.contains("grep") && 
-                    !lower.contains("echo") && 
-                    !lower.contains("ps |") &&
-                    !lower.contains("sh -c") &&
-                    !lower.contains("bin/sh") &&
-                    !lower.contains("ps ") &&
-                    !lower.contains("uci ") &&
-                    !lower.contains("export path=")
-            
-            if (isProcessLine) {
+            if (isValidOpenVpnProcessLine(line)) {
                 var foundInLine = false
                 
                 syslogRegex.find(line)?.let {

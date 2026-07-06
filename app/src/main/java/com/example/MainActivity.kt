@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import com.example.ui.SettingsPanel
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -542,7 +543,7 @@ fun MainScreen(viewModel: RouterViewModel) {
             .fillMaxSize()
             .testTag("app_scaffold"),
         topBar = {
-            if (state.currentTab != TabType.CONSOLE && (state.currentTab != TabType.TEST || (!isTestFullScreen && !isIPerfFullScreen && !isWifiAnalyzerFullScreen))) {
+            if (!(state.config == null || state.isConfiguring) && state.currentTab != TabType.CONSOLE && (state.currentTab != TabType.TEST || (!isTestFullScreen && !isIPerfFullScreen && !isWifiAnalyzerFullScreen))) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -806,22 +807,11 @@ fun MainScreen(viewModel: RouterViewModel) {
                 // Settings & Credential Panel
                 SettingsPanel(
                     state = state,
-                    onConnect = { ip, port, user, pass ->
-                        viewModel.testConnection(ip, port, user, pass)
-                    },
-                    onSave = { ip, port, user, pass, ledBehavior, wgInterface ->
-                        viewModel.saveConfig(ip, port, user, pass, ledBehavior, wgInterface)
-                    },
+                    viewModel = viewModel,
                     onDismiss = {
                         if (state.config != null) {
                             viewModel.setConfiguring(false)
                         }
-                    },
-                    onLogout = {
-                        viewModel.logout()
-                    },
-                    onPasswordChanged = {
-                        viewModel.clearConnectionError()
                     }
                 )
             } else {
@@ -4142,10 +4132,11 @@ fun downloadAndInstallApk(context: android.content.Context, url: String) {
     }
 }
 fun getLocalIpAddress(targetIp: String? = null): String {
-    if (!targetIp.isNullOrEmpty() && targetIp != "127.0.0.1") {
+    val cleanTargetIp = targetIp?.removePrefix("[")?.removeSuffix("]")
+    if (!cleanTargetIp.isNullOrEmpty() && cleanTargetIp != "127.0.0.1") {
         try {
             java.net.DatagramSocket().use { socket ->
-                socket.connect(java.net.InetAddress.getByName(targetIp), 1024)
+                socket.connect(java.net.InetAddress.getByName(cleanTargetIp), 1024)
                 val localAddress = socket.localAddress.hostAddress
                 if (!localAddress.isNullOrEmpty() && localAddress != "0.0.0.0") {
                     return localAddress
@@ -7402,510 +7393,7 @@ fun TestTab(
 }
 
 @Composable
-fun SettingsPanel(state: UiState,
-    
-    onConnect: (String, Int, String, String) -> Unit,
-    onSave: (String, Int, String, String, String, String) -> Unit,
-    onDismiss: () -> Unit,
-    onLogout: () -> Unit,
-    onPasswordChanged: () -> Unit
-) {
-    var ip by remember { mutableStateOf(state.config?.ipAddress ?: "192.168.1.1") }
-    var port by remember { mutableStateOf(state.config?.port?.toString() ?: "22") }
-    var user by remember { mutableStateOf(state.config?.username ?: "root") }
-    var password by remember { mutableStateOf(state.config?.sshKeyOrPassword ?: "") }
-    var ledBehavior by remember { mutableStateOf(state.config?.ledBehavior ?: "always_on") }
-    var wgInterface by remember { mutableStateOf(state.config?.wgInterface ?: "wg0") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var passwordFocused by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
-
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val isTv = remember {
-        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
-    }
-
-    @Composable
-    fun PanelContent() {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(if (isTv) 16.dp else 0.dp)
-                .testTag("settings_dialog_panel"),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            LazyColumn(
-                modifier = Modifier
-                    .padding(24.dp)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "SSH Подключение",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        if (state.config != null) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(Icons.Default.Close, contentDescription = "Закрыть")
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Text(
-                        text = "Введите реквизиты доступа SSH вашего роутера OpenWrt для сбора статистики и управления службами VPN.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // IP Address input
-                item {
-                    OutlinedTextField(
-                        value = ip,
-                        onValueChange = { ip = it },
-                        label = { Text("IP Адрес или Домен") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("ip_input"),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
-                    )
-                }
-
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Port input
-                        OutlinedTextField(
-                            value = port,
-                            onValueChange = { port = it },
-                            label = { Text("Порт SSH") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("port_input"),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
-                        )
-
-                        // Username input
-                        OutlinedTextField(
-                            value = user,
-                            onValueChange = { user = it },
-                            label = { Text("Логин") },
-                            modifier = Modifier
-                                .weight(1.5f)
-                                .testTag("username_input"),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) }
-                        )
-                    }
-                }
-
-                // Password Input
-                item {
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { 
-                            password = it
-                            onPasswordChanged()
-                        },
-                        label = { Text(if (password.isEmpty() && !passwordFocused) "Пароль" else "Пароль SSH") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { passwordFocused = it.isFocused }
-                            .testTag("password_input"),
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Done
-                        ),
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                        trailingIcon = {
-                            TextButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Text(if (passwordVisible) "Скрыть" else "Показать")
-                            }
-                        }
-                    )
-                }
-
-                // Connect button under Password input
-                item {
-                    if (state.isConnecting) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(48.dp))
-                        }
-                    } else {
-                        val hasError = state.connectionError != null
-                        Button(
-                            onClick = {
-                                val portInt = port.toIntOrNull() ?: 22
-                                onConnect(ip, portInt, user, password)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .testTag("connect_button"),
-                            colors = if (hasError) {
-                                ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            } else {
-                                ButtonDefaults.buttonColors()
-                            },
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text(
-                                text = when {
-                                    state.isConnectionVerified -> "Подключено"
-                                    hasError -> state.connectionError!!
-                                    else -> "Подключить"
-                                },
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                style = if (hasError) MaterialTheme.typography.bodySmall else MaterialTheme.typography.labelLarge
-                            )
-                        }
-                    }
-                }
-
-
-                // WireGuard Interface selection (hidden in UI, logic kept)
-                item {
-                    val filteredAvailable = state.availableInterfaces
-                    
-                    androidx.compose.runtime.LaunchedEffect(filteredAvailable) {
-                        if (state.config != null) {
-                            if (filteredAvailable.size == 1) {
-                                wgInterface = filteredAvailable.first()
-                            } else if (filteredAvailable.isNotEmpty() && !filteredAvailable.any { it.lowercase().trim() == wgInterface.lowercase().trim() }) {
-                                val lower = wgInterface.lowercase().trim()
-                                if (lower == "wg0" || lower == "wgo") {
-                                    wgInterface = filteredAvailable.first()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Error label is now shown inside the Connect button above
-
-                item {
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-
-                // Connect/Save or loader bar
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = {
-                                val portInt = port.toIntOrNull() ?: 22
-                                onSave(ip, portInt, user, password, ledBehavior, wgInterface)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .testTag("save_config_button"),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text(
-                                text = "Сохранить изменения",
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        if (state.config != null) {
-                            OutlinedButton(
-                                onClick = onLogout,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .testTag("logout_button"),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.error
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ExitToApp,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(text = "Удалить подключение", fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        val localeText = context.resources.configuration.locales[0].language
-                        OutlinedButton(
-                            onClick = { showAboutDialog = true },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .testTag("about_button"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = IperfLocalizations.getAboutAppTitle(localeText), fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (showAboutDialog) {
-        val localeText = java.util.Locale.getDefault().language
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showAboutDialog = false },
-            title = {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "OpenWrt Router Control",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(androidx.compose.ui.graphics.Color(0xFF1B1B1F)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(id = R.drawable.xiaomi_ax3000t_icon_1779873723654),
-                            contentDescription = "App Icon",
-                            modifier = Modifier.size(48.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "v" + BuildConfig.VERSION_NAME,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = IperfLocalizations.getAboutAppFree(localeText),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "© Viktor Herasymov",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                    Text(
-                        text = "https://github.com/Vihtoor/openwrt-router-control",
-                        style = MaterialTheme.typography.bodySmall.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable {
-                            uriHandler.openUri("https://github.com/Vihtoor/openwrt-router-control")
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "https://4pda.to/forum/index.php?showtopic=1123422",
-                        style = MaterialTheme.typography.bodySmall.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable {
-                            uriHandler.openUri("https://4pda.to/forum/index.php?showtopic=1123422")
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    var isCheckingUpdate by remember { mutableStateOf(false) }
-                    var localUpdateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
-                    
-                    OutlinedButton(
-                        onClick = {
-                            isCheckingUpdate = true
-                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                                val lang = context.resources.configuration.locales[0].language
-                                val info = checkUpdate(lang)
-                                isCheckingUpdate = false
-                                if (info != null) {
-                                    val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "v1.0.0"
-                                    val latestVer = info.version.replace("v", "").replace(".", "").toIntOrNull() ?: 0
-                                    val currentVer = currentVersion.replace("v", "").replace(".", "").toIntOrNull() ?: 0
-                                    if (latestVer > currentVer) {
-                                        localUpdateInfo = info
-                                    } else {
-                                        android.widget.Toast.makeText(context, translateText("У вас установлена последняя версия", context), android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                } else {
-                                    android.widget.Toast.makeText(context, translateText("Ошибка проверки обновлений", context), android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
-                    ) {
-                        if (isCheckingUpdate) {
-                            androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text(translateText("Проверить обновления", context))
-                        }
-                    }
-
-                    localUpdateInfo?.let { info ->
-                        androidx.compose.material3.AlertDialog(
-                            onDismissRequest = { localUpdateInfo = null },
-                            title = { Text(translateText("Доступно обновление", context), fontWeight = FontWeight.Bold) },
-                            text = {
-                                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    Text(translateText("Найдена новая версия:", context) + " ${info.version}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                                        item {
-                                            Text(info.releaseNotes, style = MaterialTheme.typography.bodyMedium)
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            val downloadText = "- " + translateText("Скачать обновление вы можете вручную с https://github.com/Vihtoor/openwrt-router-control/releases", context)
-                                            val url = "https://github.com/Vihtoor/openwrt-router-control/releases"
-                                            val startIndex = downloadText.indexOf(url)
-                                            if (startIndex != -1) {
-                                                val annotatedString = androidx.compose.ui.text.buildAnnotatedString {
-                                                    append(downloadText)
-                                                    addStyle(
-                                                        style = androidx.compose.ui.text.SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
-                                                        start = startIndex,
-                                                        end = startIndex + url.length
-                                                    )
-                                                    addStringAnnotation(
-                                                        tag = "URL",
-                                                        annotation = url,
-                                                        start = startIndex,
-                                                        end = startIndex + url.length
-                                                    )
-                                                }
-                                                androidx.compose.foundation.text.ClickableText(
-                                                    text = annotatedString,
-                                                    onClick = { offset ->
-                                                        annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                                                            .firstOrNull()?.let { annotation ->
-                                                                uriHandler.openUri(annotation.item)
-                                                            }
-                                                    },
-                                                    style = MaterialTheme.typography.bodySmall.copy(color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
-                                                )
-                                            } else {
-                                                Text(downloadText, style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50), modifier = Modifier.clickable { uriHandler.openUri(url) })
-                                            }
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text("- " + translateText("Проверить обновление можно вручную в разделе настроек О приложении", context), style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
-                                        }
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    androidx.compose.material3.Button(onClick = {
-                                        val prefs = context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
-                                        prefs.edit().putString("skipped_update_version", info.version).apply()
-                                        localUpdateInfo = null
-                                    }) {
-                                        Text(translateText("Выйти и больше не спрашивать", context), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                                    }
-                                    androidx.compose.material3.Button(onClick = {
-                                        downloadAndInstallApk(context, info.apkUrl)
-                                        localUpdateInfo = null
-                                        showAboutDialog = false
-                                    }) {
-                                        Text(translateText("Обновить", context))
-                                    }
-                                    androidx.compose.material3.Button(onClick = { localUpdateInfo = null }) {
-                                        Text(translateText("Выход", context))
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAboutDialog = false }) {
-                    Text(text = IperfLocalizations.getAboutAppClose(localeText))
-                }
-            }
-        )
-    }
-
-    if (isTv) {
-        PanelContent()
-    } else {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.95f)
-                    .wrapContentHeight()
-                    .padding(vertical = 24.dp)
-            ) {
-                PanelContent()
-            }
-        }
-    }
-}
-
-@Composable
-fun Text(
-    text: String,
-    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
-    color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
-    fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
-    fontStyle: androidx.compose.ui.text.font.FontStyle? = null,
-    fontWeight: androidx.compose.ui.text.font.FontWeight? = null,
-    fontFamily: androidx.compose.ui.text.font.FontFamily? = null,
-    letterSpacing: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
-    textDecoration: androidx.compose.ui.text.style.TextDecoration? = null,
-    textAlign: androidx.compose.ui.text.style.TextAlign? = null,
+fun Text(text: String, modifier: Modifier = Modifier, color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified, fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified, fontStyle: androidx.compose.ui.text.font.FontStyle? = null, fontWeight: androidx.compose.ui.text.font.FontWeight? = null, fontFamily: androidx.compose.ui.text.font.FontFamily? = null, letterSpacing: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified, textDecoration: androidx.compose.ui.text.style.TextDecoration? = null, textAlign: androidx.compose.ui.text.style.TextAlign? = null,
     lineHeight: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
     overflow: androidx.compose.ui.text.style.TextOverflow = androidx.compose.ui.text.style.TextOverflow.Clip,
     softWrap: Boolean = true,
@@ -8872,6 +8360,627 @@ fun translateText(raw: String, context: android.content.Context): String {
                 "sv" -> "Kopiera"
                 else -> "Copy"
             }
+        }
+        "Android application for managing OpenWrt routers." -> when (lang) {
+            "ru" -> "Android-приложение для управления роутерами OpenWrt."
+            "uk" -> "Android-додаток для керування роутерами OpenWrt."
+            "be" -> "Android-дадатак для кіравання роўтэрамі OpenWrt."
+            "de" -> "Android-Anwendung zur Verwaltung von OpenWrt-Routern."
+            "es" -> "Aplicación de Android para gestionar enrutadores OpenWrt."
+            "fr" -> "Application Android pour gérer les routeurs OpenWrt."
+            "it" -> "Applicazione Android per gestire i router OpenWrt."
+            "pt" -> "Aplicativo Android para gerenciar roteadores OpenWrt."
+            "da" -> "Android-applikation til styring af OpenWrt-routere."
+            "fi" -> "Android-sovellus OpenWrt-reitittimien hallintaan."
+            "kk" -> "OpenWrt роутерлерін басқаруға арналған Android қолданбасы."
+            "lt" -> "„Android“ programa, skirta „OpenWrt“ maršrutizatoriams valdyti."
+            "lv" -> "Android lietojumprogramma OpenWrt maršrutētāju pārvaldībai."
+            "ro" -> "Aplicație Android pentru gestionarea routerelor OpenWrt."
+            "sv" -> "Android-applikation för att hantera OpenWrt-routrar."
+            "bg" -> "Приложение за Android за управление на рутери OpenWrt."
+            "cs" -> "Aplikace pro Android pro správu routerů OpenWrt."
+            "el" -> "Εφαρμογή Android για διαχείριση δρομολογητών OpenWrt."
+            "et" -> "Androidi rakendus OpenWrt ruuterite haldamiseks."
+            "hu" -> "Android alkalmazás az OpenWrt útválasztók kezeléséhez."
+            "pl" -> "Aplikacja na Androida do zarządzania routerami OpenWrt."
+            "sk" -> "Aplikácia pre Android na správu smerovačov OpenWrt."
+            "sl" -> "Aplikacija za Android za upravljanje usmerjevalnikov OpenWrt."
+            "tr" -> "OpenWrt yönlendiricileri yönetmek için Android uygulaması."
+            else -> "Android application for managing OpenWrt routers."
+        }
+        "Connection established" -> when (lang) {
+            "ru" -> "Соединение установлено"
+            "uk" -> "З'єднання встановлено"
+            "be" -> "Злучэнне ўстаноўлена"
+            "de" -> "Verbindung hergestellt"
+            "es" -> "Conexión establecida"
+            "fr" -> "Connexion établie"
+            "it" -> "Connessione stabilita"
+            "pt" -> "Conexão estabelecida"
+            "da" -> "Forbindelse etableret"
+            "fi" -> "Yhteys muodostettu"
+            "kk" -> "Қосылым орнатылды"
+            "lt" -> "Ryšys užmegztas"
+            "lv" -> "Savienojums izveidots"
+            "ro" -> "Conexiune stabilită"
+            "sv" -> "Anslutning upprättad"
+            "bg" -> "Връзката е установена"
+            "cs" -> "Připojení navázáno"
+            "el" -> "Η σύνδεση δημιουργήθηκε"
+            "et" -> "Ühendus loodud"
+            "hu" -> "Kapcsolat létrehozva"
+            "pl" -> "Połączenie nawiązane"
+            "sk" -> "Pripojenie vytvorené"
+            "sl" -> "Povezava vzpostavljena"
+            "tr" -> "Bağlantı kuruldu"
+            else -> "Connection established"
+        }
+        "IP адрес / Хост" -> when (lang) {
+            "ru" -> "IP адрес / Хост"
+            "uk" -> "IP адреса / Хост"
+            "be" -> "IP адрас / Хост"
+            "de" -> "IP-Adresse / Host"
+            "es" -> "Dirección IP / Host"
+            "fr" -> "Adresse IP / Hôte"
+            "it" -> "Indirizzo IP / Host"
+            "pt" -> "Endereço IP / Host"
+            "da" -> "IP-adresse / Vært"
+            "fi" -> "IP-osoite / Isäntä"
+            "kk" -> "IP мекенжайы / Хост"
+            "lt" -> "IP adresas / Pagarbiai"
+            "lv" -> "IP adrese / Saimnieks"
+            "ro" -> "Adresă IP / Gazdă"
+            "sv" -> "IP-adress / Värd"
+            "bg" -> "IP адрес / Хост"
+            "cs" -> "IP adresa / Hostitel"
+            "el" -> "Διεύθυνση IP / Κεντρικός υπολογιστής"
+            "et" -> "IP-aadress / Host"
+            "hu" -> "IP cím / Gazdagép"
+            "pl" -> "Adres IP / Host"
+            "sk" -> "IP adresa / Hostiteľ"
+            "sl" -> "IP naslov / Gostitelj"
+            "tr" -> "IP adresi / Sunucu"
+            else -> "IP address / Host"
+        }
+        "Openwrt Router Control" -> when (lang) {
+            "ru" -> "Openwrt Router Control"
+            "uk" -> "Openwrt Router Control"
+            "be" -> "Openwrt Router Control"
+            "de" -> "Openwrt Router Control"
+            "es" -> "Openwrt Router Control"
+            "fr" -> "Openwrt Router Control"
+            "it" -> "Openwrt Router Control"
+            "pt" -> "Openwrt Router Control"
+            "da" -> "Openwrt Router Control"
+            "fi" -> "Openwrt Router Control"
+            "kk" -> "Openwrt Router Control"
+            "lt" -> "Openwrt Router Control"
+            "lv" -> "Openwrt Router Control"
+            "ro" -> "Openwrt Router Control"
+            "sv" -> "Openwrt Router Control"
+            "bg" -> "Openwrt Router Control"
+            "cs" -> "Openwrt Router Control"
+            "el" -> "Openwrt Router Control"
+            "et" -> "Openwrt Router Control"
+            "hu" -> "Openwrt Router Control"
+            "pl" -> "Openwrt Router Control"
+            "sk" -> "Openwrt Router Control"
+            "sl" -> "Openwrt Router Control"
+            "tr" -> "Openwrt Router Control"
+            else -> "Openwrt Router Control"
+        }
+        "Test connection" -> when (lang) {
+            "ru" -> "Проверить соединение"
+            "uk" -> "Перевірити з'єднання"
+            "be" -> "Праверыць злучэнне"
+            "de" -> "Verbindung testen"
+            "es" -> "Probar conexión"
+            "fr" -> "Tester la connexion"
+            "it" -> "Prova connessione"
+            "pt" -> "Testar conexão"
+            "da" -> "Test forbindelse"
+            "fi" -> "Testaa yhteys"
+            "kk" -> "Қосылымды тексеру"
+            "lt" -> "Bandyti ryšį"
+            "lv" -> "Pārbaudīt savienojumu"
+            "ro" -> "Testare conexiune"
+            "sv" -> "Testa anslutning"
+            "bg" -> "Тестване на връзката"
+            "cs" -> "Otestovat připojení"
+            "el" -> "Δοκιμή σύνδεσης"
+            "et" -> "Testi ühendust"
+            "hu" -> "Kapcsolat tesztelése"
+            "pl" -> "Testuj połączenie"
+            "sk" -> "Otestovať pripojenie"
+            "sl" -> "Preizkusi povezavo"
+            "tr" -> "Bağlantıyı test et"
+            else -> "Test connection"
+        }
+        "Версия" -> when (lang) {
+            "ru" -> "Версия"
+            "uk" -> "Версія"
+            "be" -> "Версія"
+            "de" -> "Version"
+            "es" -> "Versión"
+            "fr" -> "Version"
+            "it" -> "Versione"
+            "pt" -> "Versão"
+            "da" -> "Version"
+            "fi" -> "Versio"
+            "kk" -> "Нұсқа"
+            "lt" -> "Versija"
+            "lv" -> "Versija"
+            "ro" -> "Versiune"
+            "sv" -> "Version"
+            "bg" -> "Версия"
+            "cs" -> "Verze"
+            "el" -> "Έκδοση"
+            "et" -> "Versioon"
+            "hu" -> "Verzió"
+            "pl" -> "Wersja"
+            "sk" -> "Verzia"
+            "sl" -> "Različica"
+            "tr" -> "Sürüm"
+            else -> "Version"
+        }
+        "Добавить новый роутер" -> when (lang) {
+            "ru" -> "Добавить новый роутер"
+            "uk" -> "Додати новий роутер"
+            "be" -> "Дадаць новы роўтэр"
+            "de" -> "Neuen Router hinzufügen"
+            "es" -> "Agregar nuevo enrutador"
+            "fr" -> "Ajouter un nouveau routeur"
+            "it" -> "Aggiungi nuovo router"
+            "pt" -> "Adicionar novo roteador"
+            "da" -> "Tilføj ny router"
+            "fi" -> "Lisää uusi reititin"
+            "kk" -> "Жаңа роутер қосу"
+            "lt" -> "Pridėti naują maršrutizatorių"
+            "lv" -> "Pievienot jaunu maršrutētāju"
+            "ro" -> "Adăugați un router nou"
+            "sv" -> "Lägg till ny router"
+            "bg" -> "Добавяне на нов рутер"
+            "cs" -> "Přidat nový router"
+            "el" -> "Προσθήκη νέου δρομολογητή"
+            "et" -> "Lisa uus ruuter"
+            "hu" -> "Új útválasztó hozzáadása"
+            "pl" -> "Dodaj nowy router"
+            "sk" -> "Pridať nový smerovač"
+            "sl" -> "Dodaj nov usmerjevalnik"
+            "tr" -> "Yeni yönlendirici ekle"
+            else -> "Add new router"
+        }
+        "Закрыть" -> when (lang) {
+            "ru" -> "Закрыть"
+            "uk" -> "Закрити"
+            "be" -> "Зачыніць"
+            "de" -> "Schließen"
+            "es" -> "Cerrar"
+            "fr" -> "Fermer"
+            "it" -> "Chiudi"
+            "pt" -> "Fechar"
+            "da" -> "Luk"
+            "fi" -> "Sulje"
+            "kk" -> "Жабу"
+            "lt" -> "Uždaryti"
+            "lv" -> "Aizvērt"
+            "ro" -> "Închide"
+            "sv" -> "Stäng"
+            "bg" -> "Затваряне"
+            "cs" -> "Zavřít"
+            "el" -> "Κλείσιμο"
+            "et" -> "Sulge"
+            "hu" -> "Bezárás"
+            "pl" -> "Zamknij"
+            "sk" -> "Zavrieť"
+            "sl" -> "Zapri"
+            "tr" -> "Kapat"
+            else -> "Close"
+        }
+        "Имя пользователя" -> when (lang) {
+            "ru" -> "Имя пользователя"
+            "uk" -> "Ім'я користувача"
+            "be" -> "Імя карыстальніка"
+            "de" -> "Benutzername"
+            "es" -> "Nombre de usuario"
+            "fr" -> "Nom d'utilisateur"
+            "it" -> "Nome utente"
+            "pt" -> "Nome de usuário"
+            "da" -> "Brugernavn"
+            "fi" -> "Käyttäjätunnus"
+            "kk" -> "Пайдаланушы аты"
+            "lt" -> "Vartotojo vardas"
+            "lv" -> "Lietotājvārds"
+            "ro" -> "Nume de utilizator"
+            "sv" -> "Användarnamn"
+            "bg" -> "Потребителско име"
+            "cs" -> "Uživatelské jméno"
+            "el" -> "Όνομα χρήστη"
+            "et" -> "Kasutajanimi"
+            "hu" -> "Felhasználónév"
+            "pl" -> "Nazwa użytkownika"
+            "sk" -> "Používateľské meno"
+            "sl" -> "Uporabniško ime"
+            "tr" -> "Kullanıcı adı"
+            else -> "Username"
+        }
+        "Имя профиля" -> when (lang) {
+            "ru" -> "Имя профиля"
+            "uk" -> "Ім'я профілю"
+            "be" -> "Імя профілю"
+            "de" -> "Profilname"
+            "es" -> "Nombre de perfil"
+            "fr" -> "Nom du profil"
+            "it" -> "Nome del profilo"
+            "pt" -> "Nome do perfil"
+            "da" -> "Profilnavn"
+            "fi" -> "Profiilin nimi"
+            "kk" -> "Профиль аты"
+            "lt" -> "Profilio pavadinimas"
+            "lv" -> "Profila nosaukums"
+            "ro" -> "Nume profil"
+            "sv" -> "Profilnamn"
+            "bg" -> "Име на профила"
+            "cs" -> "Název profilu"
+            "el" -> "Όνομα προφίλ"
+            "et" -> "Profiili nimi"
+            "hu" -> "Profil neve"
+            "pl" -> "Nazwa profilu"
+            "sk" -> "Názov profilu"
+            "sl" -> "Ime profila"
+            "tr" -> "Profil adı"
+            else -> "Profile name"
+        }
+        "Нет настроенных роутеров" -> when (lang) {
+            "ru" -> "Нет настроенных роутеров"
+            "uk" -> "Немає налаштованих роутерів"
+            "be" -> "Няма наладжаных роўтэраў"
+            "de" -> "Keine konfigurierten Router"
+            "es" -> "No hay enrutadores configurados"
+            "fr" -> "Aucun routeur configuré"
+            "it" -> "Nessun router configurato"
+            "pt" -> "Nenhum roteador configurado"
+            "da" -> "Ingen konfigurerede routere"
+            "fi" -> "Ei määritettyjä reitittimiä"
+            "kk" -> "Бапталған роутерлер жоқ"
+            "lt" -> "Nėra sukonfigūruotų maršrutizatorių"
+            "lv" -> "Nav konfigurētu maršrutētāju"
+            "ro" -> "Niciun router configurat"
+            "sv" -> "Inga konfigurerade routrar"
+            "bg" -> "Няма конфигурирани рутери"
+            "cs" -> "Žádné nakonfigurované routery"
+            "el" -> "Δεν υπάρχουν διαμορφωμένοι δρομολογητές"
+            "et" -> "Konfigureeritud ruutereid pole"
+            "hu" -> "Nincsenek konfigurált útválasztók"
+            "pl" -> "Brak skonfigurowanych routerów"
+            "sk" -> "Žiadne nakonfigurované smerovače"
+            "sl" -> "Ni konfiguriranih usmerjevalnikov"
+            "tr" -> "Yapılandırılmış yönlendiriciler yok"
+            else -> "No routers configured"
+        }
+        "О приложении" -> when (lang) {
+            "ru" -> "О приложении"
+            "uk" -> "Про додаток"
+            "be" -> "Пра дадатак"
+            "de" -> "Über die App"
+            "es" -> "Acerca de la aplicación"
+            "fr" -> "À propos de l'application"
+            "it" -> "Informazioni sull'app"
+            "pt" -> "Sobre o aplicativo"
+            "da" -> "Om appen"
+            "fi" -> "Tietoja sovelluksesta"
+            "kk" -> "Қолданба туралы"
+            "lt" -> "Apie programą"
+            "lv" -> "Par lietotni"
+            "ro" -> "Despre aplicație"
+            "sv" -> "Om appen"
+            "bg" -> "За приложението"
+            "cs" -> "O aplikaci"
+            "el" -> "Σχετικά με την εφαρμογή"
+            "et" -> "Rakenduse kohta"
+            "hu" -> "Az alkalmazásról"
+            "pl" -> "O aplikacji"
+            "sk" -> "O aplikácii"
+            "sl" -> "O aplikaciji"
+            "tr" -> "Uygulama hakkında"
+            else -> "About the app"
+        }
+        "Ошибка при проверке обновлений" -> when (lang) {
+            "ru" -> "Ошибка при проверке обновлений"
+            "uk" -> "Помилка під час перевірки оновлень"
+            "be" -> "Памылка пры праверцы абнаўленняў"
+            "de" -> "Fehler beim Prüfen auf Updates"
+            "es" -> "Error al buscar actualizaciones"
+            "fr" -> "Erreur lors de la vérification des mises à jour"
+            "it" -> "Errore durante il controllo degli aggiornamenti"
+            "pt" -> "Erro ao verificar atualizações"
+            "da" -> "Fejl under søgning efter opdateringer"
+            "fi" -> "Virhe tarkistettaessa päivityksiä"
+            "kk" -> "Жаңартуларды тексеру кезіндегі қате"
+            "lt" -> "Klaida tikrinant atnaujinimus"
+            "lv" -> "Kļūda, pārbaudot atjauninājumus"
+            "ro" -> "Eroare la verificarea actualizărilor"
+            "sv" -> "Fel vid sökning efter uppdateringar"
+            "bg" -> "Грешка при проверка за актуализации"
+            "cs" -> "Chyba při kontrole aktualizací"
+            "el" -> "Σφάλμα κατά τον έλεγχο για ενημερώσεις"
+            "et" -> "Viga värskenduste otsimisel"
+            "hu" -> "Hiba történt a frissítések keresésekor"
+            "pl" -> "Błąd podczas sprawdzania aktualizacji"
+            "sk" -> "Chyba pri kontrole aktualizácií"
+            "sl" -> "Napaka pri iskanju posodobitev"
+            "tr" -> "Güncellemeler kontrol edilirken hata oluştu"
+            else -> "Error checking for updates"
+        }
+        "Пароль или приватный ключ" -> when (lang) {
+            "ru" -> "Пароль или приватный ключ"
+            "uk" -> "Пароль або приватний ключ"
+            "be" -> "Пароль або прыватны ключ"
+            "de" -> "Passwort oder privater Schlüssel"
+            "es" -> "Contraseña o clave privada"
+            "fr" -> "Mot de passe ou clé privée"
+            "it" -> "Password o chiave privata"
+            "pt" -> "Senha ou chave privada"
+            "da" -> "Adgangskode eller privat nøgle"
+            "fi" -> "Salasana tai yksityinen avain"
+            "kk" -> "Құпия сөз немесе жеке кілт"
+            "lt" -> "Slaptažodis arba privatus raktas"
+            "lv" -> "Parole vai privātā atslēga"
+            "ro" -> "Parolă sau cheie privată"
+            "sv" -> "Lösenord eller privat nyckel"
+            "bg" -> "Парола или частен ключ"
+            "cs" -> "Heslo nebo soukromý klíč"
+            "el" -> "Κωδικός πρόσβασης ή ιδιωτικό κλειδί"
+            "et" -> "Parool või privaatvõti"
+            "hu" -> "Jelszó vagy privát kulcs"
+            "pl" -> "Hasło lub klucz prywatny"
+            "sk" -> "Heslo alebo súkromný kľúč"
+            "sl" -> "Geslo ali zasebni ključ"
+            "tr" -> "Şifre veya özel anahtar"
+            else -> "Password or private key"
+        }
+        "Пожалуйста, добавьте первый профиль роутера для продолжения." -> when (lang) {
+            "ru" -> "Пожалуйста, добавьте первый профиль роутера для продолжения."
+            "uk" -> "Будь ласка, додайте перший профіль роутера для продовження."
+            "be" -> "Калі ласка, дадайце першы профіль роўтэра для працягу."
+            "de" -> "Bitte fügen Sie Ihr erstes Router-Profil hinzu, um fortzufahren."
+            "es" -> "Por favor, agregue el primer perfil de enrutador para continuar."
+            "fr" -> "Veuillez ajouter le premier profil de routeur pour continuer."
+            "it" -> "Aggiungi il primo profilo router per continuare."
+            "pt" -> "Por favor, adicione o primeiro perfil de roteador para continuar."
+            "da" -> "Tilføj venligst den første routerprofil for at fortsætte."
+            "fi" -> "Lisää ensimmäinen reititinprofiili jatkaaksesi."
+            "kk" -> "Жалғастыру үшін бірінші роутер профилін қосыңыз."
+            "lt" -> "Norėdami tęsti, pridėkite pirmąjį maršrutizatoriaus profilį."
+            "lv" -> "Lai turpinātu, lūdzu, pievienojiet pirmo maršrutētāja profilu."
+            "ro" -> "Vă rugăm să adăugați primul profil de router pentru a continua."
+            "sv" -> "Lägg till den första routerprofilen för att fortsätta."
+            "bg" -> "Моля, добавете първия профил на рутера, за да продължите."
+            "cs" -> "Chcete-li pokračovat, přidejte první profil routeru."
+            "el" -> "Παρακαλώ προσθέστε το πρώτο προφίλ δρομολογητή για να συνεχίσετε."
+            "et" -> "Jätkamiseks lisage esimene ruuteri profiil."
+            "hu" -> "Kérjük, adja hozzá az első útválasztó profilját a folytatáshoz."
+            "pl" -> "Dodaj pierwszy profil routera, aby kontynuować."
+            "sk" -> "Ak chcete pokračovať, pridajte prvý profil smerovača."
+            "sl" -> "Za nadaljevanje dodajte prvi profil usmerjevalnika."
+            "tr" -> "Devam etmek için lütfen ilk yönlendirici profilini ekleyin."
+            else -> "Please add your first router profile to continue."
+        }
+        "Порт" -> when (lang) {
+            "ru" -> "Порт"
+            "uk" -> "Порт"
+            "be" -> "Порт"
+            "de" -> "Port"
+            "es" -> "Puerto"
+            "fr" -> "Port"
+            "it" -> "Porta"
+            "pt" -> "Porta"
+            "da" -> "Port"
+            "fi" -> "Portti"
+            "kk" -> "Порт"
+            "lt" -> "Prievadas"
+            "lv" -> "Ports"
+            "ro" -> "Port"
+            "sv" -> "Port"
+            "bg" -> "Порт"
+            "cs" -> "Port"
+            "el" -> "Λιμάνι"
+            "et" -> "Port"
+            "hu" -> "Port"
+            "pl" -> "Port"
+            "sk" -> "Port"
+            "sl" -> "Vrata"
+            "tr" -> "Port"
+            else -> "Port"
+        }
+        "Проверить обновление" -> when (lang) {
+            "ru" -> "Проверить обновление"
+            "uk" -> "Перевірити оновлення"
+            "be" -> "Праверыць абнаўленне"
+            "de" -> "Auf Updates prüfen"
+            "es" -> "Buscar actualizaciones"
+            "fr" -> "Vérifier les mises à jour"
+            "it" -> "Controlla aggiornamenti"
+            "pt" -> "Verificar atualizações"
+            "da" -> "Søg efter opdateringer"
+            "fi" -> "Tarkista päivitykset"
+            "kk" -> "Жаңартуды тексеру"
+            "lt" -> "Tikrinti atnaujinimus"
+            "lv" -> "Pārbaudīt atjauninājumus"
+            "ro" -> "Verifică actualizări"
+            "sv" -> "Sök efter uppdateringar"
+            "bg" -> "Проверка за актуализации"
+            "cs" -> "Zkontrolovat aktualizace"
+            "el" -> "Έλεγχος για ενημερώσεις"
+            "et" -> "Otsi värskendusi"
+            "hu" -> "Frissítések keresése"
+            "pl" -> "Sprawdź aktualizacje"
+            "sk" -> "Skontrolovať aktualizácie"
+            "sl" -> "Preveri za posodobitve"
+            "tr" -> "Güncellemeleri kontrol et"
+            else -> "Check for update"
+        }
+        "Редактировать" -> when (lang) {
+            "ru" -> "Редактировать"
+            "uk" -> "Редагувати"
+            "be" -> "Рэдагаваць"
+            "de" -> "Bearbeiten"
+            "es" -> "Editar"
+            "fr" -> "Éditer"
+            "it" -> "Modifica"
+            "pt" -> "Editar"
+            "da" -> "Rediger"
+            "fi" -> "Muokkaa"
+            "kk" -> "Өңдеу"
+            "lt" -> "Redaguoti"
+            "lv" -> "Rediģēt"
+            "ro" -> "Editare"
+            "sv" -> "Redigera"
+            "bg" -> "Редактиране"
+            "cs" -> "Upravit"
+            "el" -> "Επεξεργασία"
+            "et" -> "Muuda"
+            "hu" -> "Szerkesztés"
+            "pl" -> "Edytuj"
+            "sk" -> "Upraviť"
+            "sl" -> "Uredi"
+            "tr" -> "Düzenle"
+            else -> "Edit"
+        }
+        "Сохраненные роутеры" -> when (lang) {
+            "ru" -> "Сохраненные роутеры"
+            "uk" -> "Збережені роутери"
+            "be" -> "Захаваныя роўтэры"
+            "de" -> "Gespeicherte Router"
+            "es" -> "Enrutadores guardados"
+            "fr" -> "Routeurs enregistrés"
+            "it" -> "Router salvati"
+            "pt" -> "Roteadores salvos"
+            "da" -> "Gemte routere"
+            "fi" -> "Tallennetut reitittimet"
+            "kk" -> "Сақталған роутерлер"
+            "lt" -> "Išsaugoti maršrutizatoriai"
+            "lv" -> "Saglabātie maršrutētāji"
+            "ro" -> "Routere salvate"
+            "sv" -> "Sparade routrar"
+            "bg" -> "Запазени рутери"
+            "cs" -> "Uložené routery"
+            "el" -> "Αποθηκευμένοι δρομολογητές"
+            "et" -> "Salvestatud ruuterid"
+            "hu" -> "Mentett útválasztók"
+            "pl" -> "Zapisane routery"
+            "sk" -> "Uložené smerovače"
+            "sl" -> "Shranjeni usmerjevalniki"
+            "tr" -> "Kaydedilmiş yönlendiriciler"
+            else -> "Saved routers"
+        }
+        "Сохранить профиль" -> when (lang) {
+            "ru" -> "Сохранить профиль"
+            "uk" -> "Зберегти профіль"
+            "be" -> "Захаваць профіль"
+            "de" -> "Profil speichern"
+            "es" -> "Guardar perfil"
+            "fr" -> "Enregistrer le profil"
+            "it" -> "Salva profilo"
+            "pt" -> "Salvar perfil"
+            "da" -> "Gem profil"
+            "fi" -> "Tallenna profiili"
+            "kk" -> "Профильді сақтау"
+            "lt" -> "Išsaugoti profilį"
+            "lv" -> "Saglabāt profilu"
+            "ro" -> "Salvează profil"
+            "sv" -> "Spara profil"
+            "bg" -> "Запазване на профила"
+            "cs" -> "Uložit profil"
+            "el" -> "Αποθήκευση προφίλ"
+            "et" -> "Salvesta profiil"
+            "hu" -> "Profil mentése"
+            "pl" -> "Zapisz profil"
+            "sk" -> "Uložiť profil"
+            "sl" -> "Shrani profil"
+            "tr" -> "Profili kaydet"
+            else -> "Save profile"
+        }
+        "Удалить" -> when (lang) {
+            "ru" -> "Удалить"
+            "uk" -> "Видалити"
+            "be" -> "Выдаліць"
+            "de" -> "Löschen"
+            "es" -> "Eliminar"
+            "fr" -> "Supprimer"
+            "it" -> "Elimina"
+            "pt" -> "Excluir"
+            "da" -> "Slet"
+            "fi" -> "Poista"
+            "kk" -> "Жою"
+            "lt" -> "Ištrinti"
+            "lv" -> "Dzēst"
+            "ro" -> "Șterge"
+            "sv" -> "Ta bort"
+            "bg" -> "Изтриване"
+            "cs" -> "Smazat"
+            "el" -> "Διαγραφή"
+            "et" -> "Kustuta"
+            "hu" -> "Törlés"
+            "pl" -> "Usuń"
+            "sk" -> "Odstrániť"
+            "sl" -> "Izbriši"
+            "tr" -> "Sil"
+            else -> "Delete"
+        }
+        "Connected" -> when (lang) {
+            "ru" -> "Подключено"
+            "uk" -> "Підключено"
+            "be" -> "Падключана"
+            "de" -> "Verbunden"
+            "es" -> "Conectado"
+            "fr" -> "Connecté"
+            "it" -> "Connesso"
+            "pt" -> "Conectado"
+            "da" -> "Tilsluttet"
+            "fi" -> "Yhdistetty"
+            "kk" -> "Қосылды"
+            "lt" -> "Prijungta"
+            "lv" -> "Pievienots"
+            "ro" -> "Conectat"
+            "sv" -> "Ansluten"
+            "bg" -> "Свързано"
+            "cs" -> "Připojeno"
+            "el" -> "Συνδέθηκε"
+            "et" -> "Ühendatud"
+            "hu" -> "Csatlakoztatva"
+            "pl" -> "Połączono"
+            "sk" -> "Pripojené"
+            "sl" -> "Povezano"
+            "tr" -> "Bağlandı"
+            else -> "Connected"
+        }
+        "Connection failed. Please check IP, port, login, and password." -> when (lang) {
+            "ru" -> "Ошибка подключения. Пожалуйста, проверьте IP, порт, логин и пароль."
+            "uk" -> "Помилка підключення. Будь ласка, перевірте IP, порт, логін та пароль."
+            "be" -> "Памылка падлучэння. Калі ласка, праверце IP, порт, лагін і пароль."
+            "de" -> "Verbindung fehlgeschlagen. Bitte überprüfen Sie IP, Port, Login und Passwort."
+            "es" -> "Conexión fallida. Por favor, compruebe la IP, el puerto, el nombre de usuario y la contraseña."
+            "fr" -> "Échec de la connexion. Veuillez vérifier l'IP, le port, l'identifiant et le mot de passe."
+            "it" -> "Connessione non riuscita. Controlla IP, porta, login e password."
+            "pt" -> "Falha na conexão. Verifique o IP, porta, login e senha."
+            "da" -> "Forbindelse mislykkedes. Tjek venligst IP, port, login og adgangskode."
+            "fi" -> "Yhteys epäonnistui. Tarkista IP, portti, käyttäjätunnus ja salasana."
+            "kk" -> "Қосылу қатесі. IP, порт, логин және құпия сөзді тексеріңіз."
+            "lt" -> "Ryšys nepavyko. Patikrinkite IP, prievadą, prisijungimo vardą ir slaptažodį."
+            "lv" -> "Savienojums neizdevās. Lūdzu, pārbaudiet IP, portu, pieteikšanās vārdu un paroli."
+            "ro" -> "Conexiune eșuată. Vă rugăm să verificați IP-ul, portul, numele de utilizator și parola."
+            "sv" -> "Anslutning misslyckades. Kontrollera IP, port, inloggning och lösenord."
+            "bg" -> "Грешка при свързване. Моля, проверете IP, порт, потребителско име и парола."
+            "cs" -> "Připojení selhalo. Zkontrolujte prosím IP, port, přihlašovací jméno a heslo."
+            "el" -> "Αποτυχία σύνδεσης. Ελέγξτε την IP, τη θύρα, το όνομα χρήστη και τον κωδικό πρόσβασης."
+            "et" -> "Ühendus ebaõnnestus. Palun kontrollige IP-d, porti, sisselogimist ja parooli."
+            "hu" -> "A kapcsolat megszakadt. Kérjük, ellenőrizze az IP-t, portot, bejelentkezést és jelszót."
+            "pl" -> "Błąd połączenia. Sprawdź IP, port, login i hasło."
+            "sk" -> "Pripojenie zlyhalo. Skontrolujte prosím IP, port, prihlasovacie meno a heslo."
+            "sl" -> "Povezava ni uspela. Preverite IP, vrata, prijavo in geslo."
+            "tr" -> "Bağlantı başarısız. Lütfen IP, bağlant noktası, giriş ve şifreyi kontrol edin."
+            else -> "Connection failed. Please check IP, port, login, and password."
         }
         else -> {
             if (raw.startsWith("Запущена (") && raw.endsWith(")")) {

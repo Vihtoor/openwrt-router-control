@@ -105,7 +105,8 @@ class SshClientManager {
 
             Log.d("SshClientManager", "Establishing new SSH session to ${config.ipAddress}:${config.port}")
             val jsch = JSch()
-            val session = jsch.getSession(config.username, config.ipAddress, config.port)
+            val cleanIp = config.ipAddress.removePrefix("[").removeSuffix("]")
+            val session = jsch.getSession(config.username, cleanIp, config.port)
             session.setPassword(config.sshKeyOrPassword)
             
             val properties = Properties()

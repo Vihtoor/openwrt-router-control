@@ -99,7 +99,7 @@ class RouterWidgetProvider : AppWidgetProvider() {
             try {
                 val db = RouterDatabase.getDatabase(context)
                 val dao = db.routerDao()
-                val config = dao.getRouterConfig()
+                val config = dao.getActiveRouterConfig()
                 if (config == null) {
                     lastOpenVpnText = "Заполните в приложении"
                     lastWireGuardText = "Заполните в приложении"
@@ -156,7 +156,7 @@ class RouterWidgetProvider : AppWidgetProvider() {
             try {
                 val db = RouterDatabase.getDatabase(context)
                 val dao = db.routerDao()
-                val config = dao.getRouterConfig()
+                val config = dao.getActiveRouterConfig()
                 if (config == null) {
                     lastOpenVpnText = "Заполните в приложении"
                     lastWireGuardText = "Заполните в приложении"
@@ -288,7 +288,7 @@ class RouterWidgetProvider : AppWidgetProvider() {
             try {
                 val db = RouterDatabase.getDatabase(context)
                 val dao = db.routerDao()
-                val config = dao.getRouterConfig()
+                val config = dao.getActiveRouterConfig()
                 if (config == null) {
                     lastOpenVpnText = "Заполните в приложении"
                     lastWireGuardText = "Заполните в приложении"

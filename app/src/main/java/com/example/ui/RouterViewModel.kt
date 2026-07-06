@@ -141,7 +141,8 @@ data class UiState(
     val isVpnTransitioning: Boolean = false,
     val vpnTransitionText: String? = null,
     val isDnsListDialogOpen: Boolean = false,
-    val isInteractiveShellActive: Boolean = false
+    val isInteractiveShellActive: Boolean = false,
+    val allConfigs: List<RouterConfig> = emptyList()
 )
 
 class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
@@ -319,6 +320,12 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
             }
             .launchIn(viewModelScope)
 
+        repository.allRouterConfigsFlow
+            .onEach { configs ->
+                _uiState.update { it.copy(allConfigs = configs) }
+            }
+            .launchIn(viewModelScope)
+
         // Observe console logs Flow
         repository.consoleLogsFlow
             .onEach { logs ->
@@ -381,9 +388,20 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
         if (slashIndex != -1) {
             host = host.substring(0, slashIndex)
         }
-        val colonIndex = host.indexOf(':')
-        if (colonIndex != -1) {
-            host = host.substring(0, colonIndex)
+        val isIpv6 = host.count { it == ':' } > 1
+        if (isIpv6) {
+            val bracketIndex = host.lastIndexOf(']')
+            if (bracketIndex != -1) {
+                val colonAfterBracket = host.indexOf(':', bracketIndex)
+                if (colonAfterBracket != -1) {
+                    host = host.substring(0, colonAfterBracket)
+                }
+            }
+        } else {
+            val colonIndex = host.indexOf(':')
+            if (colonIndex != -1) {
+                host = host.substring(0, colonIndex)
+            }
         }
         return host.trim()
     }
@@ -461,16 +479,19 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
     }
 
     // Save configuration and close dialog
-    fun saveConfig(ip: String, port: Int, user: String, pass: String, ledBehavior: String, wgInterface: String) {
+    fun saveConfig(id: Int, profileName: String, ip: String, port: Int, user: String, pass: String, ledBehavior: String, wgInterface: String) {
         viewModelScope.launch {
             val cleanedIp = cleanHost(ip)
             val finalConfig = RouterConfig(
+                id = id,
+                profileName = profileName.trim().ifEmpty { "My Router" },
                 ipAddress = cleanedIp,
                 port = port,
                 username = user.trim(),
                 sshKeyOrPassword = pass,
                 ledBehavior = ledBehavior,
-                wgInterface = wgInterface
+                wgInterface = wgInterface,
+                isActive = true
             )
             repository.saveRouterConfig(finalConfig)
             _uiState.update { 
@@ -483,7 +504,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
     }
 
     fun clearConnectionError() {
-        _uiState.update { it.copy(connectionError = null) }
+        _uiState.update { it.copy(connectionError = null, isConnectionVerified = false) }
     }
 
     fun selectOpenVpnService(newService: String) {
@@ -627,12 +648,38 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
         }
     }
 
-    fun logout() {
+    fun switchConfig(id: Int, onComplete: () -> Unit = {}) {
+        val targetConfig = _uiState.value.allConfigs.find { it.id == id } ?: return
         viewModelScope.launch {
             stopPollers()
-            repository.deleteRouterConfig()
-            _uiState.update { it.copy(isConnectionVerified = false, availableInterfaces = listOf("wg0")) }
+            val updatedConfig = targetConfig.copy(isActive = true)
+            repository.saveRouterConfig(updatedConfig)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onComplete()
+            }
         }
+    }
+
+    fun deleteConfig(id: Int) {
+        viewModelScope.launch {
+            val wasActive = _uiState.value.config?.id == id
+            if (wasActive) {
+                stopPollers()
+                _uiState.update { it.copy(isConnectionVerified = false, availableInterfaces = listOf("wg0")) }
+            }
+            repository.deleteRouterConfig(id)
+            // If we deleted the active one, pick the first available one as active
+            val remaining = _uiState.value.allConfigs.filter { it.id != id }
+            if (wasActive && remaining.isNotEmpty()) {
+                val newActive = remaining.first().copy(isActive = true)
+                repository.saveRouterConfig(newActive)
+            }
+        }
+    }
+
+    fun logout() {
+        val activeId = _uiState.value.config?.id ?: return
+        deleteConfig(activeId)
     }
 
     // Manual status refresh triggered from the top-right button
@@ -676,6 +723,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                 val activeOvpnList = freshStatus.activeOpenVpnInstances?.split(",")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: emptyList()
 
                 // 1. OpenVPN services
+                val addedOvpn = mutableSetOf<String>()
                 for (serviceName in availableOvpn) {
                     val sNameLower = serviceName.lowercase()
                     val isRunning = freshStatus.isOpenVpnActive && (
@@ -685,14 +733,31 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                     )
                     val isChecked = isRunning
                     newVpnList.add(RouterVpnItem(name = serviceName, type = "OpenVPN", isRunning = isRunning, isChecked = isChecked))
+                    addedOvpn.add(sNameLower)
+                }
+                
+                if (freshStatus.isOpenVpnActive) {
+                    for (activeOvpn in activeOvpnList) {
+                        if (!addedOvpn.contains(activeOvpn)) {
+                            newVpnList.add(RouterVpnItem(name = activeOvpn, type = "OpenVPN", isRunning = true, isChecked = true))
+                        }
+                    }
                 }
 
                 // 2. Interfaces (WireGuard and AmneziaWG)
+                val addedWg = mutableSetOf<String>()
                 for ((ifaceName, proto) in ifacesWithProtos) {
                     val type = if (proto == "amneziawg") "AmneziaWG" else "WireGuard"
                     val isRunning = activeWgList.contains(ifaceName)
                     val isChecked = isRunning
                     newVpnList.add(RouterVpnItem(name = ifaceName, type = type, isRunning = isRunning, isChecked = isChecked))
+                    addedWg.add(ifaceName)
+                }
+                
+                for (activeWg in activeWgList) {
+                    if (!addedWg.contains(activeWg)) {
+                        newVpnList.add(RouterVpnItem(name = activeWg, type = "WireGuard", isRunning = true, isChecked = true))
+                    }
                 }
 
                 if (!isFirstLaunchVpnSyncDone) {
@@ -762,6 +827,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                 val activeOvpnList = freshStatus.activeOpenVpnInstances?.split(",")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: emptyList()
 
                 // 1. OpenVPN services
+                val addedOvpn = mutableSetOf<String>()
                 for (serviceName in availableOvpn) {
                     val sNameLower = serviceName.lowercase()
                     val isRunning = freshStatus.isOpenVpnActive && (
@@ -771,14 +837,31 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                     )
                     val isChecked = isRunning
                     newVpnList.add(RouterVpnItem(name = serviceName, type = "OpenVPN", isRunning = isRunning, isChecked = isChecked))
+                    addedOvpn.add(sNameLower)
+                }
+                
+                if (freshStatus.isOpenVpnActive) {
+                    for (activeOvpn in activeOvpnList) {
+                        if (!addedOvpn.contains(activeOvpn)) {
+                            newVpnList.add(RouterVpnItem(name = activeOvpn, type = "OpenVPN", isRunning = true, isChecked = true))
+                        }
+                    }
                 }
 
                 // 2. Interfaces (WireGuard and AmneziaWG)
+                val addedWg = mutableSetOf<String>()
                 for ((ifaceName, proto) in ifacesWithProtos) {
                     val type = if (proto == "amneziawg") "AmneziaWG" else "WireGuard"
                     val isRunning = activeWgList.contains(ifaceName)
                     val isChecked = isRunning
                     newVpnList.add(RouterVpnItem(name = ifaceName, type = type, isRunning = isRunning, isChecked = isChecked))
+                    addedWg.add(ifaceName)
+                }
+                
+                for (activeWg in activeWgList) {
+                    if (!addedWg.contains(activeWg)) {
+                        newVpnList.add(RouterVpnItem(name = activeWg, type = "WireGuard", isRunning = true, isChecked = true))
+                    }
                 }
 
                 _uiState.update { 

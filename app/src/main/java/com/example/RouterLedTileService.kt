@@ -60,7 +60,7 @@ class RouterLedTileService : TileService() {
             try {
                 val db = RouterDatabase.getDatabase(applicationContext)
                 val dao = db.routerDao()
-                val config = dao.getRouterConfig()
+                val config = dao.getActiveRouterConfig()
 
                 if (config == null) {
                     withContext(Dispatchers.Main) {
@@ -125,7 +125,7 @@ class RouterLedTileService : TileService() {
                 val tile = withContext(Dispatchers.Main) { qsTile } ?: return@launch
                 val db = RouterDatabase.getDatabase(applicationContext)
                 val dao = db.routerDao()
-                val config = dao.getRouterConfig() ?: return@launch
+                val config = dao.getActiveRouterConfig() ?: return@launch
 
                 // Get next state by toggling current UI state or cached state
                 val currentState = withContext(Dispatchers.Main) { tile.state == Tile.STATE_ACTIVE }
