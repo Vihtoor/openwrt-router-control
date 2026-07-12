@@ -58,12 +58,12 @@ class SshForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("SSH подключен")
-            .setContentText("Терминал активен")
+            .setContentTitle(getString(R.string.ssh_connected))
+            .setContentText(getString(R.string.ssh_terminal_active))
             .setSmallIcon(android.R.drawable.ic_menu_manage) // системная иконка
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(0, "Отключить", stopPendingIntent)
+            .addAction(0, getString(R.string.ssh_disconnect), stopPendingIntent)
             .build()
     }
 

@@ -1,4 +1,5 @@
 package com.example
+import androidx.compose.ui.res.stringResource
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -346,6 +347,8 @@ fun MainScreen(viewModel: RouterViewModel) {
     var isTestFullScreen by remember { mutableStateOf(false) }
     var speedTestUrl by remember { mutableStateOf("https://speed.measurementlab.net/") }
     var isIPerfFullScreen by remember { mutableStateOf(false) }
+    val bottomNavTestTabFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val testTabLastCardFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     val setIPerfFullScreen = { value: Boolean ->
         isIPerfFullScreen = value
     }
@@ -745,6 +748,18 @@ fun MainScreen(viewModel: RouterViewModel) {
                             ) 
                         },
                         modifier = Modifier
+                            .focusRequester(bottomNavTestTabFocusRequester)
+                            .onKeyEvent { keyEvent ->
+                                if (isTv && keyEvent.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && keyEvent.key == androidx.compose.ui.input.key.Key.DirectionUp) {
+                                    if (state.currentTab == TabType.TEST) {
+                                        try {
+                                            testTabLastCardFocusRequester.requestFocus()
+                                            return@onKeyEvent true
+                                        } catch (e: Exception) {}
+                                    }
+                                }
+                                false
+                            }
                             .onFocusChanged { isTestFocused = it.isFocused }
                             .testTag("tab_test"),
                         alwaysShowLabel = true
@@ -826,6 +841,13 @@ fun MainScreen(viewModel: RouterViewModel) {
                     when (tab) {
                         TabType.DASHBOARD -> DashboardTab(
                             state = state,
+                            onNavigateToConsole = { cmd ->
+                                if (cmd != null) {
+                                    viewModel.setCommandInput(cmd)
+                                }
+                                viewModel.switchTab(TabType.CONSOLE)
+                            },
+                            onRefreshCapabilities = { viewModel.recheckCapabilities() },
                             onLedToggle = {
                                 viewModel.toggleLed(it)
                                 ShortcutHelper.pushShortcutById(context, if (it) "led_on" else "led_off")
@@ -883,7 +905,9 @@ fun MainScreen(viewModel: RouterViewModel) {
                             onWifiAnalyzerFullScreenChange = { isWifiAnalyzerFullScreen = it },
                             viewModel = viewModel,
                             speedTestUrl = speedTestUrl,
-                            onSpeedTestUrlChange = { speedTestUrl = it }
+                            onSpeedTestUrlChange = { speedTestUrl = it },
+                            bottomNavFocusRequester = bottomNavTestTabFocusRequester,
+                            lastCardFocusRequester = testTabLastCardFocusRequester
                         )
                     }
                 }
@@ -918,16 +942,14 @@ fun MainScreen(viewModel: RouterViewModel) {
 }
 
 @Composable
-fun InternetStatusCard(state: UiState,
-     
-    modifier: Modifier = Modifier,
-    onRefreshStatus: (() -> Unit)? = null
-) {
+fun InternetStatusCard(state: UiState, modifier: Modifier = Modifier, onRefreshStatus: (() -> Unit)? = null, onNavigateToConsole: (String?) -> Unit = {}, onRefreshCapabilities: () -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isTv = remember {
         context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
     }
     var isFocused by remember { mutableStateOf(false) }
+    var showDevices by remember { mutableStateOf(false) }
+    
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     // On phone in light theme, make it identical to TogglesCard
@@ -1050,7 +1072,7 @@ fun InternetStatusCard(state: UiState,
 }
 
 @Composable
-fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier) {
+fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier, onNavigateToConsole: (String?) -> Unit = {}, onRefreshCapabilities: () -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isTv = remember {
         context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
@@ -1060,6 +1082,8 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier) {
         configuration.screenWidthDp >= 600 && !isTv
     }
     var isFocused by remember { mutableStateOf(false) }
+    var showDevices by remember { mutableStateOf(false) }
+    
     val greenColor = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF00E676) else Color(0xFF2E7D32)
 
     Card(
@@ -1095,7 +1119,16 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                var isDlFocused by remember { mutableStateOf(false) }
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showDevices = true }
+                        .onFocusChanged { isDlFocused = it.isFocused }
+                        .focusable()
+                        .background(if (isDlFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                        .padding(4.dp)
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
@@ -1128,26 +1161,63 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier) {
                     ) {
                         // CPU
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            var showTemperature by remember { mutableStateOf(false) }
+                            LaunchedEffect(state.speedHistory.lastOrNull()?.timestamp) {
+                                showTemperature = !showTemperature
+                            }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier
                                         .size(10.dp)
                                         .clip(RoundedCornerShape(50))
-                                        .background(Color(0xFFFF1744))
+                                        .background(
+                                            if (showTemperature && state.cpuTemperature != null) {
+                                                when {
+                                                    state.cpuTemperature!! < 65f -> Color(0xFF009688)
+                                                    state.cpuTemperature!! < 75f -> Color(0xFF7FFF00)
+                                                    else -> Color(0xFFDC143C)
+                                                }
+                                            } else {
+                                                Color(0xFFDC143C)
+                                            }
+                                        )
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Процессор",
+                                    text = if (showTemperature) translateText("Температура", androidx.compose.ui.platform.LocalContext.current) else translateText("Процессор", androidx.compose.ui.platform.LocalContext.current),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Text(
-                                text = state.cpuUsage,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFFF1744)
-                            )
+                            if (showTemperature) {
+                                if (state.cpuTemperature == null) {
+                                    Text(
+                                        text = translateText("недоступна", androidx.compose.ui.platform.LocalContext.current),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    val temp = state.cpuTemperature
+                                    val tempColor = when {
+                                        temp < 65f -> Color(0xFF009688) // Teal
+                                        temp < 75f -> Color(0xFF7FFF00) // Chartreuse
+                                        else -> Color(0xFFDC143C) // Crimson
+                                    }
+                                    Text(
+                                        text = String.format("%.1f °C", temp),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = tempColor
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = state.cpuUsage,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFDC143C)
+                                )
+                            }
                         }
 
                         Box(
@@ -1219,7 +1289,16 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier) {
                     }
                 }
 
-                Column {
+                var isUlFocused by remember { mutableStateOf(false) }
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showDevices = true }
+                        .onFocusChanged { isUlFocused = it.isFocused }
+                        .focusable()
+                        .background(if (isUlFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                        .padding(4.dp)
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
@@ -1265,6 +1344,22 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier) {
                         .size(12.dp)
                 ) {}
             }
+        }
+
+
+        if (showDevices) {
+            DeviceListDialog(
+                title = androidx.compose.ui.res.stringResource(R.string.devices_title),
+                config = state.config,
+                devices = state.deviceSpeeds,
+                deviceHistory = state.deviceSpeedHistory,
+                onDismiss = { showDevices = false },
+                onNavigateToConsole = { cmd ->
+                    showDevices = false
+                    onNavigateToConsole(cmd)
+                },
+                onRefreshCapabilities = onRefreshCapabilities
+            )
         }
     }
 }
@@ -1740,7 +1835,7 @@ fun TogglesCard(state: UiState,
                             var matchedProvider: com.example.ui.DnsProvider? = null
                             var matchedVariant: com.example.ui.DnsVariant? = null
                             
-                            for (p in com.example.ui.PublicDnsProviders) {
+                            for (p in com.example.ui.getPublicDnsProviders(context)) {
                                 for (v in p.variants) {
                                     if (currentIps.any { it in v.servers }) {
                                         matchedProvider = p
@@ -2185,7 +2280,7 @@ fun TogglesCard(state: UiState,
                             
                             item {
                                 var isExpanded by remember { mutableStateOf(false) }
-                                val isUnknownCustom = state.status.isCustomDns && com.example.ui.PublicDnsProviders.none { p ->
+                                val isUnknownCustom = state.status.isCustomDns && com.example.ui.getPublicDnsProviders(context).none { p ->
                                     p.variants.any { v -> state.status.dnsServers.split(",").map{it.trim()}.all { v.servers.contains(it) } }
                                 }
                                 
@@ -2258,7 +2353,7 @@ fun TogglesCard(state: UiState,
                                 androidx.compose.material3.HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                             }
 
-                            itemsIndexed(com.example.ui.PublicDnsProviders) { index, provider ->
+                            itemsIndexed(com.example.ui.getPublicDnsProviders(context)) { index, provider ->
                                 val isProviderActive = state.status.isCustomDns && provider.variants.any { variant ->
                                     state.status.dnsServers.split(",").map{it.trim()}.all { variant.servers.contains(it) }
                                 }
@@ -2373,7 +2468,7 @@ fun TogglesCard(state: UiState,
                                         }
                                     }
                                 }
-                                if (index < com.example.ui.PublicDnsProviders.lastIndex) {
+                                if (index < com.example.ui.getPublicDnsProviders(context).lastIndex) {
                                     androidx.compose.material3.HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                                 }
                             }
@@ -2387,7 +2482,7 @@ fun TogglesCard(state: UiState,
                         horizontalArrangement = Arrangement.End
                     ) {
                         androidx.compose.material3.TextButton(onClick = { onCancelDnsChanges() }) {
-                            Text(translateText("Закрыть", context))
+                            Text(translateText(stringResource(R.string.action_close), context))
                         }
                     }
                 }
@@ -2398,6 +2493,10 @@ fun TogglesCard(state: UiState,
 
 @Composable
 fun TelemetryCard(state: UiState, modifier: Modifier = Modifier) {
+    var showTemperature by remember { mutableStateOf(false) }
+    LaunchedEffect(state.speedHistory.lastOrNull()?.timestamp) {
+        showTemperature = !showTemperature
+    }
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -2421,16 +2520,41 @@ fun TelemetryCard(state: UiState, modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Процессор",
+                    text = if (showTemperature) translateText("Температура", androidx.compose.ui.platform.LocalContext.current) else translateText("Процессор", androidx.compose.ui.platform.LocalContext.current),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    text = state.cpuUsage,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
+                if (showTemperature) {
+                    if (state.cpuTemperature == null) {
+                        Text(
+                            text = translateText("недоступна", androidx.compose.ui.platform.LocalContext.current),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        val temp = state.cpuTemperature
+                        val tempColor = when {
+                            temp < 65f -> Color(0xFF009688) // Teal
+                            temp < 75f -> Color(0xFF7FFF00) // Chartreuse
+                            else -> Color(0xFFDC143C) // Crimson
+                        }
+                        Text(
+                            text = String.format("%.1f °C", temp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = tempColor,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    Text(
+                        text = state.cpuUsage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
             // Divider
@@ -2500,7 +2624,9 @@ fun DashboardTab(state: UiState,
     onOpenDnsListDialog: () -> Unit,
     onDnsVariantSelected: (List<String>) -> Unit,
     onCancelDnsChanges: () -> Unit,
-    onRefreshStatus: () -> Unit
+    onRefreshStatus: () -> Unit,
+    onNavigateToConsole: (String?) -> Unit = {},
+    onRefreshCapabilities: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isTv = remember {
@@ -2524,18 +2650,20 @@ fun DashboardTab(state: UiState,
         ),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+
         if (isTv || (isTablet && !isPortrait)) {
             // TV or Tablet Landscape layout code: place toggles card next to status card in a row
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.Top
                 ) {
                     InternetStatusCard(
                         state = state,
                         onRefreshStatus = onRefreshStatus,
-                        modifier = Modifier.weight(1f).fillMaxHeight()
+                        modifier = Modifier.weight(1f),
+                        onNavigateToConsole = onNavigateToConsole, onRefreshCapabilities = onRefreshCapabilities,
                     )
                     TogglesCard(
                         state = state,
@@ -2548,23 +2676,24 @@ fun DashboardTab(state: UiState,
                         onOpenDnsListDialog = onOpenDnsListDialog,
                         onDnsVariantSelected = onDnsVariantSelected,
                         onCancelDnsChanges = onCancelDnsChanges,
-                        modifier = Modifier.weight(1f).fillMaxHeight()
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
             item {
-                SpeedMeterCard(state = state)
+                SpeedMeterCard(state = state, onNavigateToConsole = onNavigateToConsole, onRefreshCapabilities = onRefreshCapabilities)
             }
         } else {
             // Regular layout (Smartphones & Tablets in Portrait orientation)
             item {
                 InternetStatusCard(
                     state = state,
-                    onRefreshStatus = onRefreshStatus
+                    onRefreshStatus = onRefreshStatus,
+                    onNavigateToConsole = onNavigateToConsole, onRefreshCapabilities = onRefreshCapabilities,
                 )
             }
             item {
-                SpeedMeterCard(state = state)
+                SpeedMeterCard(state = state, onNavigateToConsole = onNavigateToConsole, onRefreshCapabilities = onRefreshCapabilities)
             }
             item {
                 TelemetryCard(state = state)
@@ -3499,13 +3628,11 @@ fun ConsoleTab(
                         }
                     }
                     view.onDeleteSurroundingText = { before, _ ->
+                        repeat(before) {
+                            onWriteRawToConsoleStdin("\u007F")
+                        }
                         if (currentTypedLine.isNotEmpty()) {
                             val actualBefore = minOf(before, currentTypedLine.length)
-                            val textToDelete = currentTypedLine.takeLast(actualBefore)
-                            val charCount = textToDelete.length
-                            repeat(charCount) {
-                                onWriteRawToConsoleStdin("\u007F")
-                            }
                             currentTypedLine = currentTypedLine.dropLast(actualBefore)
                         }
                     }
@@ -3914,7 +4041,7 @@ fun ConsoleTab(
             }
         }
 
-        if (showHistoryDialog) {
+if (showHistoryDialog) {
             androidx.compose.ui.window.Dialog(
                 onDismissRequest = { showHistoryDialog = false },
                 properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
@@ -4262,7 +4389,7 @@ fun IPerfFullScreen(
     val iperfRouterSendFocusRequester = remember { FocusRequester() }
     val iperfBackFocusRequester = remember { FocusRequester() }
 
-    val formatTitle = context.getString(R.string.iperf_server_title, "$localIpAddress:5201")
+    val formatTitle = stringResource(R.string.iperf_server_title, "$localIpAddress:5201")
     
     LaunchedEffect(localIpAddress) {
         viewModel.setCommandInput("iperf3 -c $localIpAddress -t 30")
@@ -4396,7 +4523,7 @@ fun IPerfFullScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = context.getString(R.string.iperf_console_title),
+                                text = stringResource(R.string.iperf_console_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color(0xFF64D2FF),
                                 fontWeight = FontWeight.Bold
@@ -4599,7 +4726,7 @@ fun IPerfFullScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = context.getString(R.string.router_console_title),
+                                text = stringResource(R.string.router_console_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color(0xFFFF9500),
                                 fontWeight = FontWeight.Bold
@@ -4771,7 +4898,7 @@ fun IPerfFullScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = context.getString(R.string.iperf_router_console_empty),
+                                        text = stringResource(R.string.iperf_router_console_empty),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = Color.White.copy(alpha = 0.4f),
                                         textAlign = TextAlign.Center,
@@ -4850,7 +4977,7 @@ fun IPerfFullScreen(
                                 ) {
                                     if (routerTextFieldValue.text.isEmpty()) {
                                         Text(
-                                            context.getString(R.string.console_hint_command),
+                                            stringResource(R.string.console_hint_command),
                                             fontFamily = FontFamily.Monospace,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                             style = MaterialTheme.typography.bodyMedium
@@ -4949,7 +5076,7 @@ fun IPerfFullScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = context.getString(R.string.iperf_console_title),
+                                text = stringResource(R.string.iperf_console_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color(0xFF64D2FF),
                                 fontWeight = FontWeight.Bold
@@ -5118,7 +5245,7 @@ fun IPerfFullScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = context.getString(R.string.router_console_title),
+                                text = stringResource(R.string.router_console_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color(0xFFFF9500),
                                 fontWeight = FontWeight.Bold
@@ -5242,7 +5369,7 @@ fun IPerfFullScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = context.getString(R.string.iperf_router_console_empty),
+                                        text = stringResource(R.string.iperf_router_console_empty),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = Color.White.copy(alpha = 0.4f),
                                         textAlign = TextAlign.Center,
@@ -5321,7 +5448,7 @@ fun IPerfFullScreen(
                                 ) {
                                     if (routerTextFieldValue.text.isEmpty()) {
                                         Text(
-                                            context.getString(R.string.console_hint_command),
+                                            stringResource(R.string.console_hint_command),
                                             fontFamily = FontFamily.Monospace,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                             style = MaterialTheme.typography.bodyMedium
@@ -5941,10 +6068,14 @@ fun TestTab(
     onWifiAnalyzerFullScreenChange: (Boolean) -> Unit = {},
     viewModel: com.example.ui.RouterViewModel,
     speedTestUrl: String = "https://speed.measurementlab.net/",
-    onSpeedTestUrlChange: (String) -> Unit = {}
+    onSpeedTestUrlChange: (String) -> Unit = {},
+    bottomNavFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    lastCardFocusRequester: androidx.compose.ui.focus.FocusRequester? = null
 ) {
     var isLoading by remember { androidx.compose.runtime.mutableStateOf(true) }
     var webViewRef by remember { androidx.compose.runtime.mutableStateOf<android.webkit.WebView?>(null) }
+    var showDevices by remember { mutableStateOf(false) }
+    
     var activeHelpDialog by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val isTv = remember {
@@ -6250,6 +6381,8 @@ fun TestTab(
         
         val iperfCardFocusRequester = remember { FocusRequester() }
         val iperfHelpFocusRequester = remember { FocusRequester() }
+        val devicesCardFocusRequester = remember { FocusRequester() }
+        val devicesHelpFocusRequester = remember { FocusRequester() }
         
         var isMlabFocused by remember { mutableStateOf(false) }
         var isCloudflareFocused by remember { mutableStateOf(false) }
@@ -6258,6 +6391,7 @@ fun TestTab(
         var isSpeedofmeFocused by remember { mutableStateOf(false) }
         var isWifiFocused by remember { mutableStateOf(false) }
         var isIperfFocused by remember { mutableStateOf(false) }
+        var isDevicesFocused by remember { mutableStateOf(false) }
 
         var isMlabHelpFocused by remember { mutableStateOf(false) }
         var isCloudflareHelpFocused by remember { mutableStateOf(false) }
@@ -6266,11 +6400,12 @@ fun TestTab(
         var isSpeedofmeHelpFocused by remember { mutableStateOf(false) }
         var isWifiHelpFocused by remember { mutableStateOf(false) }
         var isIperfHelpFocused by remember { mutableStateOf(false) }
+        var isDevicesHelpFocused by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
             if (isTv) {
                 try {
-                    firstCardFocusRequester.requestFocus()
+                    devicesCardFocusRequester.requestFocus()
                 } catch (e: Exception) {
                     // Ignore transient requestFocus errors on initial compose
                 }
@@ -6280,11 +6415,363 @@ fun TestTab(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 10.8.dp, bottom = 16.dp)
                 .verticalScroll(androidx.compose.foundation.rememberScrollState())
                 .testTag("test_tab_view")
         ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(devicesCardFocusRequester)
+                    .onFocusChanged { isDevicesFocused = it.isFocused }
+                    .then(
+                        if (isTv) {
+                            Modifier
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyDown) {
+                                        when (keyEvent.key) {
+                                            Key.DirectionRight -> {
+                                                devicesHelpFocusRequester.requestFocus()
+                                                true
+                                            }
+                                            Key.DirectionDown -> {
+                                                wifiCardFocusRequester.requestFocus()
+                                                true
+                                            }
+                                            else -> false
+                                        }
+                                    } else false
+                                }
+                                .border(
+                                    width = 2.dp,
+                                    color = if (isDevicesFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                        } else Modifier
+                    )
+                    .clickable { showDevices = true }
+                    .padding(bottom = 10.8.dp)
+                    .testTag("devices_start_card"),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 10.8.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.List,
+                            contentDescription = stringResource(R.string.devices_title),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column {
+                            Text(
+                                text = stringResource(R.string.devices_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = TestTabLocalizations.getDevicesDesc(context.resources.configuration.locales[0].language),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    IconButton(
+                        onClick = { activeHelpDialog = "devices" },
+                        modifier = Modifier
+                            .testTag("btn_help_devices")
+                            .focusRequester(devicesHelpFocusRequester)
+                            .onFocusChanged { isDevicesHelpFocused = it.isFocused }
+                            .then(
+                                if (isTv) {
+                                    Modifier
+                                        .onKeyEvent { keyEvent ->
+                                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                                when (keyEvent.key) {
+                                                    Key.DirectionLeft -> {
+                                                        devicesCardFocusRequester.requestFocus()
+                                                        true
+                                                    }
+                                                    Key.DirectionDown -> {
+                                                        wifiHelpFocusRequester.requestFocus()
+                                                        true
+                                                    }
+                                                    else -> false
+                                                }
+                                            } else false
+                                        }
+                                        .border(
+                                            width = 1.5.dp,
+                                            color = if (isDevicesHelpFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            shape = RoundedCornerShape(24.dp)
+                                        )
+                                } else Modifier
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = TestTabLocalizations.getHelpButtonDesc(context.resources.configuration.locales[0].language),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             val locale = context.resources.configuration.locales[0].language
+
+            // Wi-Fi Analyzer Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(wifiCardFocusRequester)
+                    .onFocusChanged { isWifiFocused = it.isFocused }
+                    .then(
+                        if (isTv) {
+                            Modifier
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyDown) {
+                                        when (keyEvent.key) {
+                                            Key.DirectionRight -> {
+                                                wifiHelpFocusRequester.requestFocus()
+                                                true
+                                            }
+                                            Key.DirectionUp -> {
+                                                devicesCardFocusRequester.requestFocus()
+                                                true
+                                            }
+                                            Key.DirectionDown -> {
+                                                iperfCardFocusRequester.requestFocus()
+                                                true
+                                            }
+                                            else -> false
+                                        }
+                                    } else false
+                                }
+                                .border(
+                                    width = 2.dp,
+                                    color = if (isWifiFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                        } else Modifier
+                    )
+                    .clickable { onWifiAnalyzerFullScreenChange(true) }
+                    .padding(bottom = 10.8.dp)
+                    .testTag("wifi_analyzer_card"),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 10.8.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = TestTabLocalizations.getWifiAnalyzerTitle(locale),
+                            tint = Color(0xFFFF3B30),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column {
+                            Text(
+                                text = TestTabLocalizations.getWifiAnalyzerTitle(locale),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = TestTabLocalizations.getWifiAnalyzerDesc(locale),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    IconButton(
+                        onClick = { activeHelpDialog = "wifi_analyzer" },
+                        modifier = Modifier
+                            .testTag("btn_help_wifi_analyzer")
+                            .focusRequester(wifiHelpFocusRequester)
+                            .onFocusChanged { isWifiHelpFocused = it.isFocused }
+                            .then(
+                                if (isTv) {
+                                    Modifier
+                                        .onKeyEvent { keyEvent ->
+                                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                                when (keyEvent.key) {
+                                                    Key.DirectionLeft -> {
+                                                        wifiCardFocusRequester.requestFocus()
+                                                        true
+                                                    }
+                                                    Key.DirectionUp -> {
+                                                        devicesHelpFocusRequester.requestFocus()
+                                                        true
+                                                    }
+                                                    Key.DirectionDown -> {
+                                                        iperfHelpFocusRequester.requestFocus()
+                                                        true
+                                                    }
+                                                    else -> false
+                                                }
+                                            } else false
+                                        }
+                                        .border(
+                                            width = 1.5.dp,
+                                            color = if (isWifiHelpFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            shape = RoundedCornerShape(24.dp)
+                                        )
+                                } else Modifier
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = TestTabLocalizations.getHelpButtonDesc(context.resources.configuration.locales[0].language),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Beautiful M3 iPerf3 Card below M-Lab
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(iperfCardFocusRequester)
+                    .onFocusChanged { isIperfFocused = it.isFocused }
+                    .then(
+                        if (isTv) {
+                            Modifier
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyDown) {
+                                        when (keyEvent.key) {
+                                            Key.DirectionRight -> {
+                                                iperfHelpFocusRequester.requestFocus()
+                                                true
+                                            }
+                                            Key.DirectionUp -> {
+                                                wifiCardFocusRequester.requestFocus()
+                                                true
+                                            }
+                                            Key.DirectionDown -> {
+                                                firstCardFocusRequester.requestFocus()
+                                                true
+                                            }
+                                            else -> false
+                                        }
+                                    } else false
+                                }
+                                .border(
+                                    width = 2.dp,
+                                    color = if (isIperfFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                        } else Modifier
+                    )
+                    .clickable { onIPerfFullScreenChange(true) }
+                    .padding(bottom = 10.8.dp)
+                    .testTag("iperf_card"),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 10.8.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = stringResource(R.string.iperf_card_title),
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column {
+                            Text(
+                                text = stringResource(R.string.iperf_card_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = stringResource(R.string.iperf_card_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    IconButton(
+                        onClick = { activeHelpDialog = "iperf" },
+                        modifier = Modifier
+                            .testTag("btn_help_iperf")
+                            .focusRequester(iperfHelpFocusRequester)
+                            .onFocusChanged { isIperfHelpFocused = it.isFocused }
+                            .then(
+                                if (isTv) {
+                                    Modifier
+                                        .onKeyEvent { keyEvent ->
+                                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                                when (keyEvent.key) {
+                                                    Key.DirectionLeft -> {
+                                                        iperfCardFocusRequester.requestFocus()
+                                                        true
+                                                    }
+                                                    Key.DirectionUp -> {
+                                                        wifiHelpFocusRequester.requestFocus()
+                                                        true
+                                                    }
+                                                    Key.DirectionDown -> {
+                                                        mlabHelpFocusRequester.requestFocus()
+                                                        true
+                                                    }
+                                                    else -> false
+                                                }
+                                            } else false
+                                        }
+                                        .border(
+                                            width = 1.5.dp,
+                                            color = if (isIperfHelpFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            shape = RoundedCornerShape(24.dp)
+                                        )
+                                } else Modifier
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = TestTabLocalizations.getHelpButtonDesc(context.resources.configuration.locales[0].language),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
 
             // Beautiful M3 Header Card
             Card(
@@ -6300,6 +6787,10 @@ fun TestTab(
                                         when (keyEvent.key) {
                                             Key.DirectionRight -> {
                                                 mlabHelpFocusRequester.requestFocus()
+                                                true
+                                            }
+                                                                                        Key.DirectionUp -> {
+                                                iperfCardFocusRequester.requestFocus()
                                                 true
                                             }
                                             Key.DirectionDown -> {
@@ -6341,13 +6832,13 @@ fun TestTab(
                     ) {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
-                            contentDescription = context.getString(R.string.speed_test_title),
+                            contentDescription = stringResource(R.string.speed_test_title),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
                         Column {
                             Text(
-                                text = context.getString(R.string.speed_test_title),
+                                text = stringResource(R.string.speed_test_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -6370,6 +6861,10 @@ fun TestTab(
                                                         firstCardFocusRequester.requestFocus()
                                                         true
                                                     }
+                                                                                                        Key.DirectionUp -> {
+                                                        iperfHelpFocusRequester.requestFocus()
+                                                        true
+                                                    }
                                                     Key.DirectionDown -> {
                                                         cloudflareHelpFocusRequester.requestFocus()
                                                         true
@@ -6388,7 +6883,7 @@ fun TestTab(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Info,
-                            contentDescription = TestTabLocalizations.getHelpButtonDesc(locale),
+                            contentDescription = TestTabLocalizations.getHelpButtonDesc(context.resources.configuration.locales[0].language),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -6511,7 +7006,7 @@ fun TestTab(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Info,
-                            contentDescription = TestTabLocalizations.getHelpButtonDesc(locale),
+                            contentDescription = TestTabLocalizations.getHelpButtonDesc(context.resources.configuration.locales[0].language),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -6634,7 +7129,7 @@ fun TestTab(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Info,
-                            contentDescription = TestTabLocalizations.getHelpButtonDesc(locale),
+                            contentDescription = TestTabLocalizations.getHelpButtonDesc(context.resources.configuration.locales[0].language),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -6757,7 +7252,7 @@ fun TestTab(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Info,
-                            contentDescription = TestTabLocalizations.getHelpButtonDesc(locale),
+                            contentDescription = TestTabLocalizations.getHelpButtonDesc(context.resources.configuration.locales[0].language),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -6769,6 +7264,7 @@ fun TestTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(speedofmeCardFocusRequester)
+                    .then(if (lastCardFocusRequester != null) Modifier.focusRequester(lastCardFocusRequester) else Modifier)
                     .onFocusChanged { isSpeedofmeFocused = it.isFocused }
                     .then(
                         if (isTv) {
@@ -6785,8 +7281,17 @@ fun TestTab(
                                                 true
                                             }
                                             Key.DirectionDown -> {
-                                                wifiCardFocusRequester.requestFocus()
-                                                true
+                                                if (bottomNavFocusRequester != null) {
+                                                    try {
+                                                        bottomNavFocusRequester.requestFocus()
+                                                        true
+                                                    } catch (e: Exception) {
+                                                        false
+                                                    }
+                                                } else {
+                                                    wifiCardFocusRequester.requestFocus()
+                                                    true
+                                                }
                                             }
                                             else -> false
                                         }
@@ -6880,253 +7385,19 @@ fun TestTab(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Info,
-                            contentDescription = TestTabLocalizations.getHelpButtonDesc(locale),
+                            contentDescription = TestTabLocalizations.getHelpButtonDesc(context.resources.configuration.locales[0].language),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
-
-            // Wi-Fi Analyzer Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(wifiCardFocusRequester)
-                    .onFocusChanged { isWifiFocused = it.isFocused }
-                    .then(
-                        if (isTv) {
-                            Modifier
-                                .onKeyEvent { keyEvent ->
-                                    if (keyEvent.type == KeyEventType.KeyDown) {
-                                        when (keyEvent.key) {
-                                            Key.DirectionRight -> {
-                                                wifiHelpFocusRequester.requestFocus()
-                                                true
-                                            }
-                                            Key.DirectionUp -> {
-                                                speedofmeCardFocusRequester.requestFocus()
-                                                true
-                                            }
-                                            Key.DirectionDown -> {
-                                                iperfCardFocusRequester.requestFocus()
-                                                true
-                                            }
-                                            else -> false
-                                        }
-                                    } else false
-                                }
-                                .border(
-                                    width = 2.dp,
-                                    color = if (isWifiFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                        } else Modifier
-                    )
-                    .clickable { onWifiAnalyzerFullScreenChange(true) }
-                    .padding(bottom = 10.8.dp)
-                    .testTag("wifi_analyzer_card"),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 10.8.dp, bottom = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = TestTabLocalizations.getWifiAnalyzerTitle(locale),
-                            tint = Color(0xFFFF3B30),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Column {
-                            Text(
-                                text = TestTabLocalizations.getWifiAnalyzerTitle(locale),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = TestTabLocalizations.getWifiAnalyzerDesc(locale),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    
-                    IconButton(
-                        onClick = { activeHelpDialog = "wifi_analyzer" },
-                        modifier = Modifier
-                            .testTag("btn_help_wifi_analyzer")
-                            .focusRequester(wifiHelpFocusRequester)
-                            .onFocusChanged { isWifiHelpFocused = it.isFocused }
-                            .then(
-                                if (isTv) {
-                                    Modifier
-                                        .onKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown) {
-                                                when (keyEvent.key) {
-                                                    Key.DirectionLeft -> {
-                                                        wifiCardFocusRequester.requestFocus()
-                                                        true
-                                                    }
-                                                    Key.DirectionUp -> {
-                                                        speedofmeHelpFocusRequester.requestFocus()
-                                                        true
-                                                    }
-                                                    Key.DirectionDown -> {
-                                                        iperfHelpFocusRequester.requestFocus()
-                                                        true
-                                                    }
-                                                    else -> false
-                                                }
-                                            } else false
-                                        }
-                                        .border(
-                                            width = 1.5.dp,
-                                            color = if (isWifiHelpFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                            shape = RoundedCornerShape(24.dp)
-                                        )
-                                } else Modifier
-                            )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = TestTabLocalizations.getHelpButtonDesc(locale),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            // Beautiful M3 iPerf3 Card below M-Lab
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(iperfCardFocusRequester)
-                    .onFocusChanged { isIperfFocused = it.isFocused }
-                    .then(
-                        if (isTv) {
-                            Modifier
-                                .onKeyEvent { keyEvent ->
-                                    if (keyEvent.type == KeyEventType.KeyDown) {
-                                        when (keyEvent.key) {
-                                            Key.DirectionRight -> {
-                                                iperfHelpFocusRequester.requestFocus()
-                                                true
-                                            }
-                                            Key.DirectionUp -> {
-                                                wifiCardFocusRequester.requestFocus()
-                                                true
-                                            }
-                                            else -> false
-                                        }
-                                    } else false
-                                }
-                                .border(
-                                    width = 2.dp,
-                                    color = if (isIperfFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                        } else Modifier
-                    )
-                    .clickable { onIPerfFullScreenChange(true) }
-                    .padding(bottom = 10.8.dp)
-                    .testTag("iperf_start_card"),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 10.8.dp, bottom = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = context.getString(R.string.iperf_card_title),
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Column {
-                            Text(
-                                text = context.getString(R.string.iperf_card_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = context.getString(R.string.iperf_card_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    
-                    IconButton(
-                        onClick = { activeHelpDialog = "iperf" },
-                        modifier = Modifier
-                            .testTag("btn_help_iperf")
-                            .focusRequester(iperfHelpFocusRequester)
-                            .onFocusChanged { isIperfHelpFocused = it.isFocused }
-                            .then(
-                                if (isTv) {
-                                    Modifier
-                                        .onKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown) {
-                                                when (keyEvent.key) {
-                                                    Key.DirectionLeft -> {
-                                                        iperfCardFocusRequester.requestFocus()
-                                                        true
-                                                    }
-                                                    Key.DirectionUp -> {
-                                                        wifiHelpFocusRequester.requestFocus()
-                                                        true
-                                                    }
-                                                    else -> false
-                                                }
-                                            } else false
-                                        }
-                                        .border(
-                                            width = 1.5.dp,
-                                            color = if (isIperfHelpFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                            shape = RoundedCornerShape(24.dp)
-                                        )
-                                } else Modifier
-                            )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = TestTabLocalizations.getHelpButtonDesc(locale),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
     if (activeHelpDialog != null) {
         val localeText = context.resources.configuration.locales[0].language
         val title = TestTabLocalizations.getDialogTitle(activeHelpDialog!!, localeText)
-        val body = TestTabLocalizations.getDialogBody(activeHelpDialog!!, localeText)
+        val body = TestTabLocalizations.getDialogBody(activeHelpDialog!!, localeText, state.config)
 
         androidx.compose.ui.window.Dialog(
             onDismissRequest = { activeHelpDialog = null },
@@ -7137,6 +7408,7 @@ fun TestTab(
             val scrollState = rememberScrollState()
             val primaryColor = MaterialTheme.colorScheme.primary
             val dialogFocusRequester = remember { FocusRequester() }
+            val copyButtonFocusRequester = remember { FocusRequester() }
             var isDialogColumnFocused by remember { mutableStateOf(false) }
             val scope = rememberCoroutineScope()
 
@@ -7226,7 +7498,12 @@ fun TestTab(
                                                              }
                                                              true
                                                          } else {
-                                                             false
+                                                             try {
+                                                                 copyButtonFocusRequester.requestFocus()
+                                                                 true
+                                                             } catch (e: Exception) {
+                                                                 false
+                                                             }
                                                          }
                                                      }
                                                      Key.DirectionUp -> {
@@ -7337,6 +7614,34 @@ fun TestTab(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.secondary
                                 )
+                            } else if (paragraph.startsWith("opkg update")) {
+                                val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = paragraph,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    var btnFocused by remember { mutableStateOf(false) }
+                                    androidx.compose.material3.IconButton(
+                                        onClick = {
+                                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(paragraph))
+                                            viewModel.setCommandInput(paragraph)
+                                            viewModel.switchTab(com.example.ui.TabType.CONSOLE)
+                                        },
+                                        modifier = Modifier.focusRequester(copyButtonFocusRequester).onFocusChanged { btnFocused = it.isFocused }.focusable().background(if (btnFocused) MaterialTheme.colorScheme.primary.copy(alpha=0.2f) else Color.Transparent, shape = androidx.compose.foundation.shape.CircleShape)
+                                    ) {
+                                        androidx.compose.material3.Icon(
+                                            imageVector = androidx.compose.material.icons.Icons.Default.ContentCopy,
+                                            contentDescription = "Copy",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
                             } else {
                                 val boldRegex = Regex("\\*\\*(.*?)\\*\\*")
                                 val annotatedString = androidx.compose.ui.text.buildAnnotatedString {
@@ -7389,6 +7694,24 @@ fun TestTab(
                 }
             }
         }
+    }
+
+    if (showDevices) {
+        DeviceListDialog(
+            title = androidx.compose.ui.res.stringResource(R.string.devices_title),
+            config = state.config,
+            devices = state.deviceSpeeds,
+            deviceHistory = state.deviceSpeedHistory,
+            onDismiss = { showDevices = false },
+            onNavigateToConsole = { cmd ->
+                showDevices = false
+                if (cmd != null) {
+                    viewModel.setCommandInput(cmd)
+                }
+                viewModel.switchTab(TabType.CONSOLE)
+            },
+            onRefreshCapabilities = { viewModel.recheckCapabilities() }
+        )
     }
 }
 
@@ -8171,6 +8494,44 @@ fun translateText(raw: String, context: android.content.Context): String {
                 else -> "Getting data..."
             }
         }
+        "Температура" -> {
+            when (lang) {
+                "ru" -> "Температура"
+                "uk" -> "Температура"
+                "be" -> "Тэмпература"
+                "de" -> "Temperatur"
+                "es" -> "Temperatura"
+                "fr" -> "Température"
+                "it" -> "Temperatura"
+                "pt" -> "Temperatura"
+                "da" -> "Temperatur"
+                "fi" -> "Lämpötila"
+                "kk" -> "Температура"
+                "lt" -> "Temperatūra"
+                "lv" -> "Temperatūra"
+                "sv" -> "Temperatur"
+                else -> "Temperature"
+            }
+        }
+        "недоступна" -> {
+            when (lang) {
+                "ru" -> "недоступна"
+                "uk" -> "недоступна"
+                "be" -> "недаступна"
+                "de" -> "nicht verfügbar"
+                "es" -> "no disponible"
+                "fr" -> "indisponible"
+                "it" -> "non disponibile"
+                "pt" -> "indisponível"
+                "da" -> "ikke tilgængelig"
+                "fi" -> "ei saatavilla"
+                "kk" -> "қолжетімсіз"
+                "lt" -> "neprieinama"
+                "lv" -> "nav pieejams"
+                "sv" -> "ej tillgänglig"
+                else -> "unavailable"
+            }
+        }
         "Router Control" -> context.getString(R.string.app_name)
         "Настройка подключения" -> context.getString(R.string.tab_dashboard)
         "Главная" -> context.getString(R.string.tab_dashboard)
@@ -8204,7 +8565,7 @@ fun translateText(raw: String, context: android.content.Context): String {
         "Введите команду" -> context.getString(R.string.console_hint_command)
         "Отправить" -> context.getString(R.string.console_desc_send)
         "SSH Подключение" -> context.getString(R.string.ssh_title)
-        "Закрыть" -> context.getString(R.string.ssh_desc_close)
+        context.getString(R.string.action_close) -> context.getString(R.string.ssh_desc_close)
         "Введите реквизиты доступа SSH вашего роутера OpenWrt для сбора статистики и управления службами VPN." -> context.getString(R.string.ssh_instructions)
         "IP Адрес" -> context.getString(R.string.ssh_host)
         "Порт SSH" -> context.getString(R.string.ssh_port)
@@ -8550,8 +8911,8 @@ fun translateText(raw: String, context: android.content.Context): String {
             "tr" -> "Yeni yönlendirici ekle"
             else -> "Add new router"
         }
-        "Закрыть" -> when (lang) {
-            "ru" -> "Закрыть"
+        context.getString(R.string.action_close) -> when (lang) {
+            "ru" -> context.getString(R.string.action_close)
             "uk" -> "Закрити"
             "be" -> "Зачыніць"
             "de" -> "Schließen"
@@ -9034,5 +9395,721 @@ fun Modifier.drawScrollbar(state: androidx.compose.foundation.lazy.LazyListState
             }
         }
     }
+}
+
+
+
+@Composable
+fun DeviceListDialog(
+    title: String,
+    config: com.example.data.RouterConfig?,
+    devices: List<com.example.ui.DeviceSpeedInfo>,
+    deviceHistory: Map<String, List<com.example.ui.DeviceSpeedInfo>>,
+    onDismiss: () -> Unit,
+    onNavigateToConsole: (String?) -> Unit = {},
+    onRefreshCapabilities: () -> Unit = {}
+) {
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        onRefreshCapabilities()
+    }
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val isTablet = configuration.screenWidthDp >= 600
+
+    var selectedDevice by remember { mutableStateOf<com.example.ui.DeviceSpeedInfo?>(null) }
+    var focusedDeviceMac by remember { mutableStateOf<String?>(null) }
+    
+    val listBg = MaterialTheme.colorScheme.surface
+    val headerBg = androidx.compose.ui.graphics.lerp(listBg, Color.White, 0.08f)
+    val sortedDevices = devices.sortedByDescending { it.downloadBytes + it.uploadBytes }
+    val strWifi6 = stringResource(R.string.wifi_6_ghz)
+    val strWifi5 = stringResource(R.string.wifi_5_ghz)
+    val strWifi24 = stringResource(R.string.wifi_24_ghz)
+    val strWifiOther = stringResource(R.string.wifi_other)
+    val strEthernet = stringResource(R.string.ethernet)
+    
+    val groups = listOf(
+        strWifi6 to sortedDevices.filter { it.connectionType == strWifi6 },
+        strWifi5 to sortedDevices.filter { it.connectionType == strWifi5 },
+        strWifi24 to sortedDevices.filter { it.connectionType == strWifi24 },
+        strWifiOther to sortedDevices.filter { it.connectionType.contains("Wi-Fi") && it.connectionType != strWifi6 && it.connectionType != strWifi5 && it.connectionType != strWifi24 },
+        strEthernet to sortedDevices.filter { it.connectionType == strEthernet }
+    )
+    val isTv = remember { context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) }
+    val firstDeviceFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val firstRenderedDevice = remember(groups) { groups.flatMap { it.second }.firstOrNull() }
+
+    var initialFocusRequested by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(isTv, firstRenderedDevice) {
+        if (isTv && firstRenderedDevice != null && !initialFocusRequested) {
+            initialFocusRequested = true
+            kotlinx.coroutines.delay(100) // Give UI time to compose
+            try {
+                firstDeviceFocusRequester.requestFocus()
+            } catch (e: Exception) {}
+        }
+    }
+
+    if (isTablet) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = onDismiss,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Row(modifier = Modifier.fillMaxSize().background(listBg)) {
+                Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(headerBg)
+                            .padding(horizontal = 24.dp, vertical = 24.dp)
+                    ) {
+                        Text(
+                            text = title,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.msg_press_device_graph),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    CapabilitiesBanner(config, onNavigateToConsole)
+                    if (sortedDevices.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.msg_no_devices),
+                            modifier = Modifier.padding(24.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else {
+
+                        androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+                            for ((groupName, devicesInGroup) in groups) {
+                                if (groupName.startsWith("Wi-Fi") && devicesInGroup.isEmpty()) continue
+                                
+                                item {
+                                    val icon = if (groupName == stringResource(R.string.ethernet)) androidx.compose.material.icons.Icons.Default.Share else androidx.compose.material.icons.Icons.Default.Wifi
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        androidx.compose.material3.Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(groupName, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(String.format(stringResource(R.string.msg_devices_connected), devicesInGroup.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                                
+                                if (groupName == strEthernet && devicesInGroup.isEmpty()) {
+                                    item {
+                                        Text(stringResource(R.string.msg_no_ethernet), modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                } else {
+                                    itemsIndexed(devicesInGroup) { index, device ->
+                                        var isFocused by remember { mutableStateOf(false) }
+                                        Row(
+                                            modifier = Modifier
+                                                .then(if (device.mac == firstRenderedDevice?.mac) Modifier.focusRequester(firstDeviceFocusRequester) else Modifier)
+                                                .fillMaxWidth()
+                                                .onFocusChanged { 
+                                                    isFocused = it.isFocused
+                                                    if (it.isFocused) {
+                                                        focusedDeviceMac = device.mac
+                                                    }
+                                                }
+                                                .clickable { focusedDeviceMac = device.mac }
+                                                .padding(vertical = 7.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                                                .padding(vertical = 5.dp, horizontal = 12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = device.hostname,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isFocused) Color.Red else MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text("IP: ${device.ip}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text("MAC: ${device.mac}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {
+                                                val dlColor = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF00E676) else Color(0xFF2E7D32)
+                                                val ulColor = Color(0xFFFFB300)
+                                                if (device.downloadBytes == -1L && device.uploadBytes == -1L) {
+                                                    Text("—", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                } else {
+                                                    Text(String.format(stringResource(R.string.format_speed_dl), device.downloadSpeedMbps), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = dlColor)
+                                                    Text(String.format(stringResource(R.string.format_speed_ul), device.uploadSpeedMbps), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = ulColor)
+                                                    
+                                                    val totalBytes = device.downloadBytes + device.uploadBytes
+                                                    val trafficStr = if (totalBytes < 1024 * 1024) {
+                                                        String.format(stringResource(R.string.format_bytes_kb), totalBytes / 1024f)
+                                                    } else if (totalBytes < 1024 * 1024 * 1024) {
+                                                        String.format(stringResource(R.string.format_bytes_mb), totalBytes / (1024f * 1024f))
+                                                    } else {
+                                                        String.format(stringResource(R.string.format_bytes_gb), totalBytes / (1024f * 1024f * 1024f))
+                                                    }
+                                                    Text(androidx.compose.ui.res.stringResource(R.string.traffic_label) + " " + trafficStr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                            }
+                                        }
+                                        if (index < devicesInGroup.size - 1) {
+                                            androidx.compose.material3.HorizontalDivider(
+                                                modifier = Modifier.padding(horizontal = 4.dp),
+                                                color = androidx.compose.ui.graphics.lerp(listBg, Color.White, 0.12f),
+                                                thickness = 1.dp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                val currentMac = focusedDeviceMac ?: sortedDevices.firstOrNull()?.mac
+                val rightPaneDevice = sortedDevices.find { it.mac == currentMac }
+                
+                androidx.compose.material3.VerticalDivider(
+                    modifier = Modifier.fillMaxHeight().width(2.dp),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(listBg)
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (rightPaneDevice != null) {
+                        val history = deviceHistory[rightPaneDevice.mac] ?: listOf(rightPaneDevice)
+                        val scrollState = rememberScrollState()
+                        Column(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState).focusable()) {
+                            Text(rightPaneDevice.hostname, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("${rightPaneDevice.formattedConnectionType(context)} • ${rightPaneDevice.ip}", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            val dlColor = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF00E676) else Color(0xFF2E7D32)
+                            val ulColor = Color(0xFFFFB300)
+                            if (rightPaneDevice.wifiRxBitrate != null && rightPaneDevice.wifiTxBitrate != null) {
+                                Text(String.format(stringResource(R.string.msg_link_speed), rightPaneDevice.wifiRxBitrate ?: "—", rightPaneDevice.wifiTxBitrate ?: "—"), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (rightPaneDevice.portMappingConfidence == com.example.data.PortMappingConfidence.APPROXIMATE) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(stringResource(R.string.msg_shared_traffic_warning), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (rightPaneDevice.downloadBytes == -1L && rightPaneDevice.uploadBytes == -1L) {
+                                Text(stringResource(R.string.msg_traffic_unavailable), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(stringResource(R.string.msg_install_nlbwmon), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "opkg update && opkg install nlbwmon",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    var btnFocused by remember { mutableStateOf(false) }
+                                    androidx.compose.material3.IconButton(
+                                        onClick = {
+                                            clipboard.setText(androidx.compose.ui.text.AnnotatedString("opkg update && opkg install nlbwmon"))
+                                            onNavigateToConsole("opkg update && opkg install nlbwmon")
+                                        },
+                                        modifier = Modifier.onFocusChanged { btnFocused = it.isFocused }.focusable().background(if (btnFocused) MaterialTheme.colorScheme.primary.copy(alpha=0.2f) else Color.Transparent, shape = androidx.compose.foundation.shape.CircleShape)
+                                    ) {
+                                        androidx.compose.material3.Icon(
+                                            imageVector = androidx.compose.material.icons.Icons.Default.ContentCopy,
+                                            contentDescription = "Copy",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = String.format(stringResource(R.string.format_download_speed), rightPaneDevice.downloadSpeedMbps),
+                                    color = dlColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = String.format(stringResource(R.string.format_upload_speed), rightPaneDevice.uploadSpeedMbps),
+                                    color = ulColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            val strKb = stringResource(R.string.format_bytes_kb)
+val strMb = stringResource(R.string.format_bytes_mb)
+val strGb = stringResource(R.string.format_bytes_gb)
+val formatBytes = { bytes: Long ->
+    if (bytes < 1024 * 1024) {
+        String.format(strKb, bytes / 1024f)
+    } else if (bytes < 1024 * 1024 * 1024) {
+        String.format(strMb, bytes / (1024f * 1024f))
+    } else {
+        String.format(strGb, bytes / (1024f * 1024f * 1024f))
+    }
+}
+                            
+                            androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(stringResource(R.string.label_today_colon), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("↓ ", style = MaterialTheme.typography.bodySmall, color = dlColor, fontWeight = FontWeight.Bold)
+                                Text("${formatBytes(rightPaneDevice.downloadMonthBytes)} ", style = MaterialTheme.typography.bodySmall, color = dlColor, fontWeight = FontWeight.Bold)
+                                Text("↑ ", style = MaterialTheme.typography.bodySmall, color = ulColor, fontWeight = FontWeight.Bold)
+                                Text("${formatBytes(rightPaneDevice.uploadMonthBytes)}", style = MaterialTheme.typography.bodySmall, color = ulColor, fontWeight = FontWeight.Bold)
+                            }
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            val convertedHistory = history.map { 
+                                com.example.ui.SpeedSnapshot(
+                                    downloadSpeedMbps = it.downloadSpeedMbps,
+                                    uploadSpeedMbps = it.uploadSpeedMbps,
+                                    cpuUsagePercent = 0f
+                                )
+                            }
+                            
+                            Box(modifier = Modifier.fillMaxWidth().height(250.dp)) {
+                                SpeedChart(
+                                    history = convertedHistory,
+                                    modifier = Modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.15f))
+                                )
+                            }
+                        }
+                    } else {
+                        Text(stringResource(R.string.msg_no_selected_device), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    } else {
+        if (selectedDevice != null) {
+            val history = deviceHistory[selectedDevice!!.mac] ?: listOf(selectedDevice!!)
+            DeviceSpeedDialog(
+                device = selectedDevice!!,
+                history = history,
+                onDismiss = { selectedDevice = null },
+                onNavigateToConsole = onNavigateToConsole
+            )
+        } else {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = onDismiss,
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBars)
+                        .padding(top = 0.dp, bottom = 120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = listBg),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                    ) {
+                    Column {
+                        // Header
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(headerBg)
+                                .padding(horizontal = 12.dp, vertical = 16.dp)
+                        ) {
+                            Text(
+                                text = title,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = stringResource(R.string.msg_press_device_graph),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        CapabilitiesBanner(config, onNavigateToConsole)
+                        // Content
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false)
+                                .padding(horizontal = 12.dp)
+                        ) {
+                            if (sortedDevices.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.msg_no_devices),
+                                    modifier = Modifier.padding(vertical = 16.dp),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            } else {
+                                val strWifi6 = stringResource(R.string.wifi_6_ghz)
+    val strWifi5 = stringResource(R.string.wifi_5_ghz)
+    val strWifi24 = stringResource(R.string.wifi_24_ghz)
+    val strWifiOther = stringResource(R.string.wifi_other)
+    val strEthernet = stringResource(R.string.ethernet)
+    
+    val groups = listOf(
+        strWifi6 to sortedDevices.filter { it.connectionType == strWifi6 },
+        strWifi5 to sortedDevices.filter { it.connectionType == strWifi5 },
+        strWifi24 to sortedDevices.filter { it.connectionType == strWifi24 },
+        strWifiOther to sortedDevices.filter { it.connectionType.contains("Wi-Fi") && it.connectionType != strWifi6 && it.connectionType != strWifi5 && it.connectionType != strWifi24 },
+        strEthernet to sortedDevices.filter { it.connectionType == strEthernet }
+    )
+                                androidx.compose.foundation.lazy.LazyColumn {
+                                    for ((groupName, devicesInGroup) in groups) {
+                                        if (groupName.startsWith("Wi-Fi") && devicesInGroup.isEmpty()) continue
+                                        
+                                        item {
+                                            val icon = if (groupName == stringResource(R.string.ethernet)) androidx.compose.material.icons.Icons.Default.Share else androidx.compose.material.icons.Icons.Default.Wifi
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                androidx.compose.material3.Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Column {
+                                                    Text(groupName, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    Text(String.format(stringResource(R.string.msg_devices_connected), devicesInGroup.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                            }
+                                        }
+                                        
+                                        if (groupName == strEthernet && devicesInGroup.isEmpty()) {
+                                            item {
+                                                Text(stringResource(R.string.msg_no_ethernet), modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        } else {
+                                            itemsIndexed(devicesInGroup) { index, device ->
+                                                var isFocused by remember { mutableStateOf(false) }
+                                                                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .clickable { selectedDevice = device }
+                                                        .onFocusChanged { isFocused = it.isFocused }
+                                                        .focusable()
+                                                        .background(if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                                                        .padding(vertical = 12.dp, horizontal = 4.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(device.hostname, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                                        Text("IP: ${device.ip}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                        Text("MAC: ${device.mac}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    }
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {
+                                                        val dlColor = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF00E676) else Color(0xFF2E7D32)
+                                                        val ulColor = Color(0xFFFFB300)
+                                                        if (device.downloadBytes == -1L && device.uploadBytes == -1L) {
+                                                            Text("—", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                        } else {
+                                                            Text(String.format(stringResource(R.string.format_speed_dl), device.downloadSpeedMbps), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = dlColor)
+                                                            Text(String.format(stringResource(R.string.format_speed_ul), device.uploadSpeedMbps), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = ulColor)
+                                                            
+                                                            val totalBytes = device.downloadBytes + device.uploadBytes
+                                                            val trafficStr = if (totalBytes < 1024 * 1024) {
+                                                                String.format(stringResource(R.string.format_bytes_kb), totalBytes / 1024f)
+                                                            } else if (totalBytes < 1024 * 1024 * 1024) {
+                                                                String.format(stringResource(R.string.format_bytes_mb), totalBytes / (1024f * 1024f))
+                                                            } else {
+                                                                String.format(stringResource(R.string.format_bytes_gb), totalBytes / (1024f * 1024f * 1024f))
+                                                            }
+                                                            Text(androidx.compose.ui.res.stringResource(R.string.traffic_label) + " " + trafficStr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                        }
+                                                    }
+                                                }
+                                                if (index < devicesInGroup.size - 1) {
+                                                    androidx.compose.material3.HorizontalDivider(
+                                                        modifier = Modifier.padding(horizontal = 4.dp),
+                                                        color = androidx.compose.ui.graphics.lerp(listBg, Color.White, 0.12f),
+                                                        thickness = 1.dp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Bottom Panel
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(headerBg)
+                                .height(52.dp)
+                                .padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            var isFocused by remember { mutableStateOf(false) }
+                            androidx.compose.material3.TextButton(
+                                onClick = onDismiss,
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+                                    .onFocusChanged { isFocused = it.isFocused }
+                                    .focusable()
+                                    .background(if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(50))
+                            ) {
+                                Text(stringResource(R.string.action_close))
+                            }
+                        }
+                    }
+                }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun CapabilitiesBanner(config: com.example.data.RouterConfig?, onNavigateToConsole: (String?) -> Unit = {}, onRefreshCapabilities: () -> Unit = {}) {
+    if (config == null) return
+    val caps = config.capabilities
+    if (caps.switchArchitecture == com.example.data.SwitchArchitecture.UNKNOWN) return
+    
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    var isDismissed by remember { mutableStateOf(prefs.getBoolean("banner_dismissed_v2", false)) }
+    
+    if (isDismissed) return
+
+    val lang = context.resources.configuration.locales[0].language
+    val messages = mutableListOf<String>()
+    val actions = mutableListOf<String>()
+    
+    if (!caps.hasBridgeUtil) {
+        messages.add(com.example.TestTabLocalizations.getBannerNoBridge(lang))
+        actions.add("ip-bridge")
+    }
+    if (!caps.hasSwconfigUtil && caps.switchArchitecture != com.example.data.SwitchArchitecture.DSA) {
+        messages.add(com.example.TestTabLocalizations.getBannerNoSwconfig(lang))
+        actions.add("swconfig")
+    }
+    
+    if (caps.switchArchitecture == com.example.data.SwitchArchitecture.SWCONFIG) {
+        if (!caps.hasBoardJsonWithSwitchSection) {
+            messages.add(com.example.TestTabLocalizations.getBannerNoBoardJson(lang))
+        }
+    } else if (caps.switchArchitecture == com.example.data.SwitchArchitecture.UNSUPPORTED) {
+        messages.add(com.example.TestTabLocalizations.getBannerUnsupported(lang, caps.switchArchitecture.toString()))
+    }
+    
+    val message = messages.joinToString("\n\n")
+    
+    if (message.isNotEmpty()) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(message, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+                if (actions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(com.example.TestTabLocalizations.getBannerInstallInstruction(lang), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                    for (act in actions) {
+                        val cmd = if (act == "ip-bridge") "opkg update && opkg install ip-bridge" else if (act == "swconfig") "opkg update && opkg install swconfig" else ""
+                        if (cmd.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = cmd,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                var btnFocused by remember { mutableStateOf(false) }
+                                androidx.compose.material3.IconButton(
+                                    onClick = {
+                                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(cmd))
+                                        onNavigateToConsole(cmd)
+                                    },
+                                    modifier = Modifier.onFocusChanged { btnFocused = it.isFocused }.focusable().background(if (btnFocused) MaterialTheme.colorScheme.primary.copy(alpha=0.2f) else Color.Transparent, shape = androidx.compose.foundation.shape.CircleShape)
+                                ) {
+                                    androidx.compose.material3.Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Default.ContentCopy,
+                                        contentDescription = "Copy",
+                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                androidx.compose.material3.Button(
+                    onClick = {
+                        prefs.edit().putBoolean("banner_dismissed_v2", true).apply()
+                        isDismissed = true
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.onErrorContainer, 
+                        contentColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Text(com.example.TestTabLocalizations.getBannerGotIt(lang))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DeviceSpeedDialog(
+    device: com.example.ui.DeviceSpeedInfo,
+    history: List<com.example.ui.DeviceSpeedInfo>,
+    onDismiss: () -> Unit,
+    onNavigateToConsole: (String?) -> Unit = {}, onRefreshCapabilities: () -> Unit = {}
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val currentDevice = history.lastOrNull() ?: device
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(currentDevice.hostname) },
+        text = {
+            val scrollState = rememberScrollState()
+                        Column(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState).focusable()) {
+                Text("${currentDevice.formattedConnectionType(context)} • ${currentDevice.ip}", style = MaterialTheme.typography.bodyMedium)
+                Text("MAC: ${currentDevice.mac}", style = MaterialTheme.typography.bodyMedium)
+    
+                
+                val dlColor = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF00E676) else Color(0xFF2E7D32)
+                val ulColor = Color(0xFFFFB300)
+                if (currentDevice.wifiRxBitrate != null && currentDevice.wifiTxBitrate != null) {
+                    Text(String.format(stringResource(R.string.msg_link_speed), currentDevice.wifiRxBitrate ?: "—", currentDevice.wifiTxBitrate ?: "—"), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                }
+                if (currentDevice.portMappingConfidence == com.example.data.PortMappingConfidence.APPROXIMATE) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(stringResource(R.string.msg_shared_traffic_warning), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+                }
+                
+                if (currentDevice.downloadBytes == -1L && currentDevice.uploadBytes == -1L) {
+                    Text(stringResource(R.string.msg_traffic_unavailable), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(stringResource(R.string.msg_install_nlbwmon), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "opkg update && opkg install nlbwmon",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        var btnFocused by remember { mutableStateOf(false) }
+                        androidx.compose.material3.IconButton(
+                            onClick = {
+                                clipboard.setText(androidx.compose.ui.text.AnnotatedString("opkg update && opkg install nlbwmon"))
+                                onNavigateToConsole("opkg update && opkg install nlbwmon")
+                            },
+                            modifier = Modifier.onFocusChanged { btnFocused = it.isFocused }.focusable().background(if (btnFocused) MaterialTheme.colorScheme.primary.copy(alpha=0.2f) else Color.Transparent, shape = androidx.compose.foundation.shape.CircleShape)
+                        ) {
+                            androidx.compose.material3.Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.ContentCopy,
+                                contentDescription = "Copy",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = String.format(stringResource(R.string.format_download_speed), currentDevice.downloadSpeedMbps),
+                        color = dlColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = String.format(stringResource(R.string.format_upload_speed), currentDevice.uploadSpeedMbps),
+                        color = ulColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+    
+
+                val strKb = stringResource(R.string.format_bytes_kb)
+val strMb = stringResource(R.string.format_bytes_mb)
+val strGb = stringResource(R.string.format_bytes_gb)
+val formatBytes = { bytes: Long ->
+    if (bytes < 1024 * 1024) {
+        String.format(strKb, bytes / 1024f)
+    } else if (bytes < 1024 * 1024 * 1024) {
+        String.format(strMb, bytes / (1024f * 1024f))
+    } else {
+        String.format(strGb, bytes / (1024f * 1024f * 1024f))
+    }
+}
+                
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.label_today_colon), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("↓ ", style = MaterialTheme.typography.bodySmall, color = dlColor, fontWeight = FontWeight.Bold)
+                    Text("${formatBytes(currentDevice.downloadMonthBytes)} ", style = MaterialTheme.typography.bodySmall, color = dlColor, fontWeight = FontWeight.Bold)
+                    Text("↑ ", style = MaterialTheme.typography.bodySmall, color = ulColor, fontWeight = FontWeight.Bold)
+                    Text("${formatBytes(currentDevice.uploadMonthBytes)}", style = MaterialTheme.typography.bodySmall, color = ulColor, fontWeight = FontWeight.Bold)
+                }
+                
+    
+                
+                val convertedHistory = history.map { 
+                    com.example.ui.SpeedSnapshot(
+                        downloadSpeedMbps = it.downloadSpeedMbps,
+                        uploadSpeedMbps = it.uploadSpeedMbps,
+                        cpuUsagePercent = 0f
+                    )
+                }
+                
+                Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                    SpeedChart(
+                        history = convertedHistory,
+                        modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.15f))
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            var isFocused by remember { mutableStateOf(false) }
+            androidx.compose.material3.TextButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .onFocusChanged { isFocused = it.isFocused }
+                    .focusable()
+                    .background(if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(50))
+            ) {
+                Text(stringResource(R.string.action_close))
+            }
+        }
+    )
 }
 

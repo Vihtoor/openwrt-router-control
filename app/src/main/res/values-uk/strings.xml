@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Openwrt Router Control</string>
     <string name="shortcut_led_on_short">Увімкнути світлодіод</string>
@@ -107,4 +108,66 @@
     <string name="vpn_available_title">Доступні VPN. Виберіть ті, які повинні бути увімкнені</string>
     <string name="vpn_apply">Застосувати</string>
     <string name="vpn_amneziawg_interface">AmneziaWG Інтерфейс</string>
-</resources>
+    <string name="devices_title">Пристрої</string>
+    <string name="select_device_for_chart">Виберіть пристрій, щоб відкрити графік</string>
+    <string name="click_device_for_chart">Натисніть на пристрій, щоб відкрити графік</string>
+    <string name="no_connected_devices">Немає підключених пристроїв або дані недоступні.</string>
+    <string name="connected_devices_count">Підключено %1$d пристроїв</string>
+    <string name="link_speed">Швидкість лінку:</string>
+    <string name="port_mapping_warning">Увага: для цього типу підключення показано загальний трафік усього фізичного порту роутера, а не лише цього пристрою.</string>
+    <string name="traffic_not_available">Трафік недоступний на цьому роутері</string>
+    <string name="download_speed_format">Завантаження: %.2f Мбіт/с</string>
+    <string name="upload_speed_format">Віддача: %.2f Мбіт/с</string>
+    <string name="today_traffic_kb">сьогодні %.1f КБ</string>
+    <string name="today_traffic_mb">сьогодні %.1f МБ</string>
+    <string name="today_traffic_gb">сьогодні %.1f ГБ</string>
+    <string name="traffic_label">сьогодні:</string>
+    <string name="no_ethernet_devices">Пристроїв підключених до Ethernet портів не виявлено</string>
+    <string name="wifi_6_ghz">Wi-Fi 6 ГГц</string>
+    <string name="wifi_5_ghz">Wi-Fi 5 ГГц</string>
+    <string name="wifi_24_ghz">Wi-Fi 2.4 ГГц</string>
+    <string name="wifi_other">Wi-Fi Інше</string>
+    <string name="ethernet">Ethernet</string>
+    <string name="dns_desc_cloudflare">Один із найшвидших публічних DNS-провайдерів у світі з акцентом на конфіденційність.</string>
+    <string name="dns_cloudflare_default">Базовий (швидкий доступ та приватність)</string>
+    <string name="dns_cloudflare_malware">Захист від шкідливого програмного забезпечення (Malware Block)</string>
+    <string name="dns_cloudflare_family">Сімейний (блокування шкідливого ПЗ + контенту для дорослих + SafeSearch)</string>
+    <string name="dns_desc_opendns">Один із найстаріших і найнадійніших сервісів, що належить компанії Cisco.</string>
+    <string name="dns_opendns_home">Базовий (Home/без фільтрації)</string>
+    <string name="dns_opendns_family">Сімейний (Family Shield/передвстановлена ​​фільтрація)</string>
+    <string name="dns_opendns_family_desc">Підходить для роутерів, фільтрує контент для дорослих без створення облікового запису.</string>
+    <string name="dns_desc_cleanbrowsing">Спеціалізований сервіс орієнтований виключно на блокування небажаного контенту.</string>
+    <string name="dns_cleanbrowsing_security">Фільтр безпеки (Security Filter)</string>
+    <string name="dns_cleanbrowsing_adult">Дорослий фільтр (Adult Filter)</string>
+    <string name="dns_cleanbrowsing_family">Сімейний фільтр (Family Filter)</string>
+    <string name="dns_cleanbrowsing_family_desc">Блокує проксі, VPN-тунелі, порнографію та жорстко включає безпечний пошук у Google/YouTube.</string>
+    <string name="dns_desc_adguard">Найкращий вибір для тих, хто хоче позбутися реклами на рівні мережевих запитів.</string>
+    <string name="dns_adguard_default">Базовий (блокування реклами, трекерів та фішингу)</string>
+    <string name="dns_adguard_family">Сімейний (базовий + контент для дорослих + SafeSearch)</string>
+    <string name="dns_adguard_unfiltered">Нефільтруючий (просто швидкий та надійний сервіс)</string>
+    <string name="dns_desc_controld">Сучасний та дуже гнучкий DNS від творців Windscribe.</string>
+    <string name="dns_controld_uncensored">Нефільтруючий (чистий інтернет / Uncensored)</string>
+    <string name="dns_controld_ads">Блокування реклами (Ads &amp; Trackers)</string>
+    <string name="dns_controld_family">Сімейний (все: реклама + соцмережі + контент для дорослих)</string>
+    <string name="dns_desc_quad9">Сервіс із акцентом на кібербезпеку.</string>
+    <string name="dns_quad9_default">Стандартний (за замовчуванням / блокування фішингу та малварі)</string>
+    <string name="dns_quad9_ecs">Стандартний + ECS-підтримка (з підтримкою ECS)</string>
+    <string name="dns_quad9_ecs_desc">Передає малу частину вашої IP-адреси (EDNS Client Subnet) для точної маршрутизації до CDN-серверів.</string>
+    <string name="dns_desc_google">Один із найпопулярніших публічних сервісів.</string>
+    <string name="dns_google_default">Стандартний</string>
+    <string name="port_approximate">(приблизно)</string>
+    <string name="port_unknown">(невідомо)</string>
+    <string name="status_restarting">Перезапуск...</string>
+    <string name="status_waiting_conn">Очікування з\'єднання...</string>
+    <string name="status_please_wait">Зачекайте, будь-ласка...</string>
+    <string name="ssh_connected">SSH підключено</string>
+    <string name="ssh_terminal_active">Термінал активний</string>
+    <string name="ssh_disconnect">Вимкнути</string>
+    <string name="format_mb_percent" formatted="false">%.1f МБ (%.0f%%)</string>
+    <string name="format_days">%dд</string>
+    <string name="format_hours">%dч</string>
+    <string name="format_minutes">%dм</string>
+    <string name="label_today_colon">Сьогодні:</string>
+    <string name="label_ip_colon">IP:</string>
+    <string name="label_mac_colon">MAC:</string>
+<string name="msg_press_device_graph">Натисніть на пристрій для перегляду графіка</string><string name="msg_no_devices">Немає підключених пристроїв</string><string name="msg_devices_connected">Підключено пристроїв: %1$d</string><string name="msg_no_ethernet">Немає ethernet пристроїв</string><string name="format_speed_dl">Завантаження: %.2f Мбіт/с</string><string name="format_speed_ul">Віддача: %.2f Мбіт/с</string><string name="format_bytes_kb">%.1f КБ</string><string name="format_bytes_mb">%.1f МБ</string><string name="format_bytes_gb">%.1f ГБ</string><string name="msg_link_speed">Швидкість з\'єднання: %1$s Rx / %2$s Tx</string><string name="msg_shared_traffic_warning">Увага: трафік є спільним для цього порту</string><string name="msg_traffic_unavailable">Трафік недоступний</string><string name="msg_install_nlbwmon">Встановіть nlbwmon для відстеження трафіку.</string><string name="format_download_speed">Завантаження: %.2f Мбіт/с</string><string name="format_upload_speed">Віддача: %.2f Мбіт/с</string><string name="msg_no_selected_device">Пристрій не вибрано</string><string name="action_close">Закрити</string></resources>

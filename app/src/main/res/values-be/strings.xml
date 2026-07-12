@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Openwrt Router Control</string>
     <string name="shortcut_led_on_short">Уключыць святлодыёд</string>
@@ -107,4 +108,66 @@
     <string name="vpn_available_title">Даступныя VPN. Выберыце тыя, якія павінны быць уключаны</string>
     <string name="vpn_apply">Прымяніць</string>
     <string name="vpn_amneziawg_interface">AmneziaWG Інтэрфейс</string>
-</resources>
+    <string name="devices_title">Прылады</string>
+    <string name="select_device_for_chart">Выберыце прыладу, каб адкрыць графік</string>
+    <string name="click_device_for_chart">Націсніце на прыладу, каб адкрыць графік</string>
+    <string name="no_connected_devices">Няма падлучаных прылад або дадзеныя недаступныя.</string>
+    <string name="connected_devices_count">Падлучана %1$d прылад</string>
+    <string name="link_speed">Хуткасць лінка:</string>
+    <string name="port_mapping_warning">Увага: для гэтага тыпу падлучэння паказаны агульны трафік усяго фізічнага порта роўтара, а не толькі гэтай прылады.</string>
+    <string name="traffic_not_available">Трафік недаступны на гэтым роўтары</string>
+    <string name="download_speed_format">Загрузка: %.2f Мбіт/с</string>
+    <string name="upload_speed_format">Выгрузка: %.2f Мбіт/с</string>
+    <string name="today_traffic_kb">сёння %.1f КБ</string>
+    <string name="today_traffic_mb">сёння %.1f МБ</string>
+    <string name="today_traffic_gb">сёння %.1f ГБ</string>
+    <string name="traffic_label">сёння:</string>
+    <string name="no_ethernet_devices">Прылад падлучаных да Ethernet партоў не выяўлена</string>
+    <string name="wifi_6_ghz">Wi-Fi 6 ГГц</string>
+    <string name="wifi_5_ghz">Wi-Fi 5 ГГц</string>
+    <string name="wifi_24_ghz">Wi-Fi 2.4 ГГц</string>
+    <string name="wifi_other">Wi-Fi Іншае</string>
+    <string name="ethernet">Ethernet</string>
+    <string name="dns_desc_cloudflare">Адзін з самых хуткіх публічных DNS-правайдэраў у свеце з акцэнтам на канфідэнцыяльнасць.</string>
+    <string name="dns_cloudflare_default">Базавы (хуткі доступ і прыватнасць)</string>
+    <string name="dns_cloudflare_malware">Абарона ад шкоднаснага ПЗ (Malware Block)</string>
+    <string name="dns_cloudflare_family">Сямейны (блакіроўка шкоднаснага ПЗ + кантэнту для дарослых + SafeSearch)</string>
+    <string name="dns_desc_opendns">Адзін з найстарэйшых і надзейных сэрвісаў, які належыць кампаніі Cisco.</string>
+    <string name="dns_opendns_home">Базавы (Home / без фільтрацыі)</string>
+    <string name="dns_opendns_family">Сямейны (Family Shield / прадусталяваная фільтраванне)</string>
+    <string name="dns_opendns_family_desc">Падыходзіць для роўтэраў, фільтруе кантэнт для дарослых без неабходнасці стварэння ўліковага запісу.</string>
+    <string name="dns_desc_cleanbrowsing">Спецыялізаваны сэрвіс, арыентаваны выключна на блакіроўку непажаданага кантэнту.</string>
+    <string name="dns_cleanbrowsing_security">Фільтр бяспекі (Security Filter)</string>
+    <string name="dns_cleanbrowsing_adult">Дарослы фільтр (Adult Filter)</string>
+    <string name="dns_cleanbrowsing_family">Сямейны фільтр (Family Filter)</string>
+    <string name="dns_cleanbrowsing_family_desc">Блакуе проксі, VPN-тунэлі, парнаграфію і жорстка ўключае бяспечны пошук у Google/YouTube.</string>
+    <string name="dns_desc_adguard">Лепшы выбар для тых, хто жадае пазбавіцца ад рэкламы на ўзроўні сеткавых запытаў.</string>
+    <string name="dns_adguard_default">Базавы (блакіроўка рэкламы, трэкераў і фішынгу)</string>
+    <string name="dns_adguard_family">Сямейны (базавы + кантэнт для дарослых + SafeSearch)</string>
+    <string name="dns_adguard_unfiltered">Нефільтруючы (проста хуткі і надзейны сэрвіс)</string>
+    <string name="dns_desc_controld">Сучасны і вельмі гнуткі DNS ад стваральнікаў Windscribe.</string>
+    <string name="dns_controld_uncensored">Нефільтруючы (чысты інтэрнэт / Uncensored)</string>
+    <string name="dns_controld_ads">Блакаванне рэкламы (Ads &amp; Trackers)</string>
+    <string name="dns_controld_family">Сямейны (усё: рэклама + сацсеткі + кантэнт для дарослых)</string>
+    <string name="dns_desc_quad9">Сэрвіс з акцэнтам на кібербяспеку.</string>
+    <string name="dns_quad9_default">Стандартны (па змаўчанні / блакіроўка фішынгу і малвары)</string>
+    <string name="dns_quad9_ecs">Стандартны + ECS-падтрымка (з падтрымкай ECS)</string>
+    <string name="dns_quad9_ecs_desc">Перадае малую частку вашага IP-адрасы (EDNS Client Subnet) для больш дакладнай маршрутызацыі да CDN-сервераў.</string>
+    <string name="dns_desc_google">Адзін з самых папулярных публічных сервісаў.</string>
+    <string name="dns_google_default">Стандартны</string>
+    <string name="port_approximate">(прыкладна)</string>
+    <string name="port_unknown">(невядома)</string>
+    <string name="status_restarting">Перазапуск...</string>
+    <string name="status_waiting_conn">Чаканне злучэння...</string>
+    <string name="status_please_wait">Калі ласка, пачакайце...</string>
+    <string name="ssh_connected">SSH падлучаны</string>
+    <string name="ssh_terminal_active">Тэрмінал актыўны</string>
+    <string name="ssh_disconnect">Адключыць</string>
+    <string name="format_mb_percent" formatted="false">%.1f МБ (%.0f%%)</string>
+    <string name="format_days">%dд</string>
+    <string name="format_hours">%dч</string>
+    <string name="format_minutes">%dм</string>
+    <string name="label_today_colon">Сёння:</string>
+    <string name="label_ip_colon">IP:</string>
+    <string name="label_mac_colon">MAC:</string>
+<string name="msg_press_device_graph">Націсніце на прыладу для прагляду графіка</string><string name="msg_no_devices">Няма падлучаных прылад</string><string name="msg_devices_connected">Падлучана прылад: %1$d</string><string name="msg_no_ethernet">Няма ethernet прылад</string><string name="format_speed_dl">Спампоўванне: %.2f Мбіт/с</string><string name="format_speed_ul">Загрузка: %.2f Мбіт/с</string><string name="format_bytes_kb">%.1f КБ</string><string name="format_bytes_mb">%.1f МБ</string><string name="format_bytes_gb">%.1f ГБ</string><string name="msg_link_speed">Хуткасць злучэння: %1$s Rx / %2$s Tx</string><string name="msg_shared_traffic_warning">Увага: трафік з\'яўляецца агульным для гэтага порта</string><string name="msg_traffic_unavailable">Трафік недаступны</string><string name="msg_install_nlbwmon">Усталюйце nlbwmon для адсочвання трафіку.</string><string name="format_download_speed">Спампоўванне: %.2f Мбіт/с</string><string name="format_upload_speed">Загрузка: %.2f Мбіт/с</string><string name="msg_no_selected_device">Прылада не выбрана</string><string name="action_close">Закрыць</string></resources>

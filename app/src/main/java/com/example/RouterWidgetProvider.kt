@@ -111,7 +111,7 @@ class RouterWidgetProvider : AppWidgetProvider() {
                 updateAllWidgets(context, "Проверка...", "Состояние...", "Состояние...", "Состояние...", lastOpenVpnState, lastWireGuardState, lastLedState)
 
                 kotlinx.coroutines.withTimeout(15000) {
-                    val repository = RouterRepository(dao, sharedSsh)
+                    val repository = RouterRepository(context, dao, sharedSsh)
                     val status = repository.queryRouterStatus(config)
 
                     lastOpenVpnState = status.isOpenVpnActive
@@ -201,7 +201,7 @@ class RouterWidgetProvider : AppWidgetProvider() {
                 )
 
                 kotlinx.coroutines.withTimeout(35000) {
-                    val repository = RouterRepository(dao, sharedSsh)
+                    val repository = RouterRepository(context, dao, sharedSsh)
                     val oldIp = try { repository.queryPublicIpOnly(config) } catch(e: Exception) { "" }
 
                     if (nextVpnState) {
@@ -309,7 +309,7 @@ class RouterWidgetProvider : AppWidgetProvider() {
                 ShortcutHelper.pushShortcutById(context, if (nextLed) "led_on" else "led_off")
 
                 kotlinx.coroutines.withTimeout(10000) {
-                    val repository = RouterRepository(dao, sharedSsh)
+                    val repository = RouterRepository(context, dao, sharedSsh)
                     repository.setLedStatus(config, nextLed)
                 }
             } catch (e: Exception) {

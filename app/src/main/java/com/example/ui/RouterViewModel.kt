@@ -18,6 +18,7 @@ data class SpeedSnapshot(
     val downloadSpeedMbps: Float,
     val uploadSpeedMbps: Float,
     val cpuUsagePercent: Float = 0f,
+    val cpuTemperature: Float? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 
@@ -35,71 +36,71 @@ data class DnsProvider(
     val variants: List<DnsVariant>
 )
 
-val PublicDnsProviders = listOf(
+fun getPublicDnsProviders(context: android.content.Context): List<DnsProvider> = listOf(
     DnsProvider(
         id = "cloudflare",
         name = "Cloudflare",
-        description = "Один из самых быстрых публичных DNS-провайдеров в мире с акцентом на конфиденциальность.",
+        description = context.getString(com.example.R.string.dns_desc_cloudflare),
         variants = listOf(
-            DnsVariant("cloudflare_default", "Базовый (быстрый доступ и приватность)", null, listOf("1.1.1.1", "1.0.0.1")),
-            DnsVariant("cloudflare_malware", "Защита от вредоносного ПО (Malware Block)", null, listOf("1.1.1.2", "1.0.0.2")),
-            DnsVariant("cloudflare_family", "Семейный (блокировка вредоносного ПО + контента для взрослых + SafeSearch)", null, listOf("1.1.1.3", "1.0.0.3"))
+            DnsVariant("cloudflare_default", context.getString(com.example.R.string.dns_cloudflare_default), null, listOf("1.1.1.1", "1.0.0.1")),
+            DnsVariant("cloudflare_malware", context.getString(com.example.R.string.dns_cloudflare_malware), null, listOf("1.1.1.2", "1.0.0.2")),
+            DnsVariant("cloudflare_family", context.getString(com.example.R.string.dns_cloudflare_family), null, listOf("1.1.1.3", "1.0.0.3"))
         )
     ),
     DnsProvider(
         id = "opendns",
         name = "OpenDNS (Cisco)",
-        description = "Один из старейших и надежнейших сервисов, принадлежащий компании Cisco.",
+        description = context.getString(com.example.R.string.dns_desc_opendns),
         variants = listOf(
-            DnsVariant("opendns_home", "Базовый (Home / без фильтрации)", null, listOf("208.67.222.222", "208.67.220.220")),
-            DnsVariant("opendns_family", "Семейный (Family Shield / предустановленная фильтрация)", "Подходит для роутеров, фильтрует контент для взрослых без необходимости создания учетной записи.", listOf("208.67.222.123", "208.67.220.123"))
+            DnsVariant("opendns_home", context.getString(com.example.R.string.dns_opendns_home), null, listOf("208.67.222.222", "208.67.220.220")),
+            DnsVariant("opendns_family", context.getString(com.example.R.string.dns_opendns_family), context.getString(com.example.R.string.dns_opendns_family_desc), listOf("208.67.222.123", "208.67.220.123"))
         )
     ),
     DnsProvider(
         id = "cleanbrowsing",
         name = "CleanBrowsing",
-        description = "Специализированный сервис, ориентированный исключительно на блокировку нежелательного контента.",
+        description = context.getString(com.example.R.string.dns_desc_cleanbrowsing),
         variants = listOf(
-            DnsVariant("cleanbrowsing_security", "Фильтр безопасности (Security Filter)", null, listOf("185.228.168.9", "185.228.169.9")),
-            DnsVariant("cleanbrowsing_adult", "Взрослый фильтр (Adult Filter)", null, listOf("185.228.168.10", "185.228.169.11")),
-            DnsVariant("cleanbrowsing_family", "Семейный фильтр (Family Filter)", "Блокирует прокси, VPN-туннели, порнографию и жестко включает безопасный поиск в Google/YouTube.", listOf("185.228.168.168", "185.228.169.168"))
+            DnsVariant("cleanbrowsing_security", context.getString(com.example.R.string.dns_cleanbrowsing_security), null, listOf("185.228.168.9", "185.228.169.9")),
+            DnsVariant("cleanbrowsing_adult", context.getString(com.example.R.string.dns_cleanbrowsing_adult), null, listOf("185.228.168.10", "185.228.169.11")),
+            DnsVariant("cleanbrowsing_family", context.getString(com.example.R.string.dns_cleanbrowsing_family), context.getString(com.example.R.string.dns_cleanbrowsing_family_desc), listOf("185.228.168.168", "185.228.169.168"))
         )
     ),
     DnsProvider(
         id = "adguard",
         name = "AdGuard DNS",
-        description = "Лучший выбор для тех, кто хочет избавиться от рекламы на уровне сетевых запросов.",
+        description = context.getString(com.example.R.string.dns_desc_adguard),
         variants = listOf(
-            DnsVariant("adguard_default", "Базовый (блокировка рекламы, трекеров и фишинга)", null, listOf("94.140.14.14", "94.140.15.15")),
-            DnsVariant("adguard_family", "Семейный (базовый + контент для взрослых + SafeSearch)", null, listOf("94.140.14.15", "94.140.15.16")),
-            DnsVariant("adguard_unfiltered", "Нефильтрующий (просто быстрый и надежный сервис)", null, listOf("94.140.14.140", "94.140.14.141"))
+            DnsVariant("adguard_default", context.getString(com.example.R.string.dns_adguard_default), null, listOf("94.140.14.14", "94.140.15.15")),
+            DnsVariant("adguard_family", context.getString(com.example.R.string.dns_adguard_family), null, listOf("94.140.14.15", "94.140.15.16")),
+            DnsVariant("adguard_unfiltered", context.getString(com.example.R.string.dns_adguard_unfiltered), null, listOf("94.140.14.140", "94.140.14.141"))
         )
     ),
     DnsProvider(
         id = "controld",
         name = "Control D",
-        description = "Современный и очень гибкий DNS от создателей Windscribe.",
+        description = context.getString(com.example.R.string.dns_desc_controld),
         variants = listOf(
-            DnsVariant("controld_uncensored", "Нефильтрующий (чистый интернет / Uncensored)", null, listOf("76.76.2.1", "76.76.10.1")),
-            DnsVariant("controld_ads", "Блокировка рекламы (Ads & Trackers)", null, listOf("76.76.2.2", "76.76.10.2")),
-            DnsVariant("controld_family", "Семейный (все: реклама + соцсети + контент для взрослых)", null, listOf("76.76.2.3", "76.76.10.3"))
+            DnsVariant("controld_uncensored", context.getString(com.example.R.string.dns_controld_uncensored), null, listOf("76.76.2.1", "76.76.10.1")),
+            DnsVariant("controld_ads", context.getString(com.example.R.string.dns_controld_ads), null, listOf("76.76.2.2", "76.76.10.2")),
+            DnsVariant("controld_family", context.getString(com.example.R.string.dns_controld_family), null, listOf("76.76.2.3", "76.76.10.3"))
         )
     ),
     DnsProvider(
         id = "quad9",
         name = "Quad9",
-        description = "Сервис с акцентом на кибербезопасность.",
+        description = context.getString(com.example.R.string.dns_desc_quad9),
         variants = listOf(
-            DnsVariant("quad9_default", "Стандартный (по умолчанию / блокировка фишинга и малвари)", null, listOf("9.9.9.9", "149.112.112.112")),
-            DnsVariant("quad9_ecs", "Стандартный + ECS-поддержка (с поддержкой ECS)", "Передает малую часть вашего IP-адреса (EDNS Client Subnet) для более точной маршрутизации до CDN-серверов.", listOf("9.9.9.11", "149.112.112.11"))
+            DnsVariant("quad9_default", context.getString(com.example.R.string.dns_quad9_default), null, listOf("9.9.9.9", "149.112.112.112")),
+            DnsVariant("quad9_ecs", context.getString(com.example.R.string.dns_quad9_ecs), context.getString(com.example.R.string.dns_quad9_ecs_desc), listOf("9.9.9.11", "149.112.112.11"))
         )
     ),
     DnsProvider(
         id = "google",
         name = "Google Public DNS",
-        description = "Один из самых популярных публичных сервисов.",
+        description = context.getString(com.example.R.string.dns_desc_google),
         variants = listOf(
-            DnsVariant("google_default", "Стандартный", null, listOf("8.8.8.8", "8.8.4.4"))
+            DnsVariant("google_default", context.getString(com.example.R.string.dns_google_default), null, listOf("8.8.8.8", "8.8.4.4"))
         )
     )
 )
@@ -110,6 +111,31 @@ data class RouterVpnItem(
     val isRunning: Boolean = false,
     val isChecked: Boolean = false
 )
+
+
+data class DeviceSpeedInfo(
+    val mac: String,
+    val ip: String,
+    val hostname: String,
+    val connectionType: String,
+    val downloadSpeedMbps: Float,
+    val uploadSpeedMbps: Float,
+    val downloadBytes: Long = 0L,
+    val uploadBytes: Long = 0L,
+    val downloadMonthBytes: Long = 0L,
+    val uploadMonthBytes: Long = 0L,
+    val portMappingConfidence: com.example.data.PortMappingConfidence = com.example.data.PortMappingConfidence.EXACT,
+    val wifiRxBitrate: String? = null,
+    val wifiTxBitrate: String? = null
+) {
+    fun formattedConnectionType(context: android.content.Context): String {
+        return when (portMappingConfidence) {
+            com.example.data.PortMappingConfidence.EXACT -> connectionType
+            com.example.data.PortMappingConfidence.APPROXIMATE -> connectionType + " " + context.getString(com.example.R.string.port_approximate)
+            com.example.data.PortMappingConfidence.UNKNOWN -> context.getString(com.example.R.string.port_unknown)
+        }
+    }
+}
 
 data class UiState(
     val currentTab: TabType = TabType.DASHBOARD,
@@ -123,6 +149,8 @@ data class UiState(
     val commandOutput: String = "",
     val consoleHistory: List<ConsoleLog> = emptyList(),
     val speedHistory: List<SpeedSnapshot> = emptyList(),
+    val deviceSpeeds: List<DeviceSpeedInfo> = emptyList(),
+    val deviceSpeedHistory: Map<String, List<DeviceSpeedInfo>> = emptyMap(),
     val currentDownloadSpeed: Float = 0f,
     val currentUploadSpeed: Float = 0f,
     val openVpnTransition: String? = null,
@@ -132,6 +160,7 @@ data class UiState(
     val availableOpenVpnServices: List<String> = emptyList(),
     val isConnectionVerified: Boolean = false,
     val cpuUsage: String = "—",
+    val cpuTemperature: Float? = null,
     val memoryUsage: String = "—",
     val uptime: String = "—",
     val isInitialLoadComplete: Boolean = false,
@@ -145,9 +174,10 @@ data class UiState(
     val allConfigs: List<RouterConfig> = emptyList()
 )
 
-class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
+class RouterViewModel(private val repository: RouterRepository, private val application: android.app.Application) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(UiState())
+    private val prefs = application.getSharedPreferences("router_prefs", android.content.Context.MODE_PRIVATE)
+    private val _uiState = MutableStateFlow(UiState(currentTab = try { TabType.valueOf(prefs.getString("current_tab", "DASHBOARD") ?: "DASHBOARD") } catch (e: Exception) { TabType.DASHBOARD }))
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private val _sessionCommandHistory = MutableStateFlow<List<String>>(emptyList())
@@ -162,6 +192,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
     private var lastRxBytes = 0L
     private var lastTxBytes = 0L
     private var lastBytesTime = 0L
+    private var lastDeviceBytes = mutableMapOf<String, Pair<Long, Long>>()
 
     private var isWaitingForTrafficAfterReboot = false
     private var pendingCommand: String? = null
@@ -287,12 +318,17 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
         // Observe router configuration in DB
         repository.routerConfigFlow
             .onEach { config ->
+                if (config != null && (isFirstEmission || config.capabilities.switchArchitecture == com.example.data.SwitchArchitecture.UNKNOWN)) {
+                    viewModelScope.launch {
+                        repository.checkAndSaveRouterCapabilities(config)
+                    }
+                }
                 _uiState.update { 
                     it.copy(
                         config = config, 
                         isConfiguring = if (config == null) true else (if (isFirstEmission) false else it.isConfiguring), 
                         isConnectionVerified = config != null,
-                        currentTab = if (isFirstEmission && config != null) TabType.DASHBOARD else it.currentTab,
+                        currentTab = it.currentTab,
                         isInitialLoadComplete = true
                     ) 
                 }
@@ -345,7 +381,16 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
             .launchIn(viewModelScope)
     }
 
+    fun recheckCapabilities() {
+        viewModelScope.launch {
+            _uiState.value.config?.let { config ->
+                repository.checkAndSaveRouterCapabilities(config)
+            }
+        }
+    }
+
     fun switchTab(tab: TabType) {
+        prefs.edit().putString("current_tab", tab.name).apply()
         val oldTab = _uiState.value.currentTab
         _uiState.update { it.copy(currentTab = tab) }
         if (tab == TabType.CONSOLE && oldTab != TabType.CONSOLE) {
@@ -375,6 +420,17 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
 
     fun setCommandInput(input: String) {
         _uiState.update { it.copy(commandInput = input) }
+        viewModelScope.launch {
+            if (interactiveShellJob == null) {
+                switchTab(TabType.CONSOLE)
+                kotlinx.coroutines.delay(1500)
+            } else {
+                switchTab(TabType.CONSOLE)
+                kotlinx.coroutines.delay(200)
+            }
+            writeRawToConsoleStdin(input)
+            _uiState.update { it.copy(commandInput = "") }
+        }
     }
 
     private fun cleanHost(input: String): String {
@@ -403,7 +459,8 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                 host = host.substring(0, colonIndex)
             }
         }
-        return host.trim()
+        host = host.trim().removePrefix("[").removeSuffix("]")
+        return host
     }
 
     // Test SSH connectivity and load interfaces without saving
@@ -520,7 +577,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
             _uiState.update { it.copy(config = updatedConfig) }
 
             if (isOpenVpnRunning) {
-                val transitionText = "Переключение..."
+                val transitionText = application.getString(com.example.R.string.status_switching)
                 _uiState.update {
                     it.copy(
                         openVpnTransition = transitionText,
@@ -590,7 +647,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
             _uiState.update { it.copy(config = updatedConfig) }
 
             if (isWgRunning) {
-                val transitionText = "Переключение..."
+                val transitionText = application.getString(com.example.R.string.status_switching)
                 _uiState.update {
                     it.copy(
                         wireguardTransition = transitionText,
@@ -904,7 +961,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
         val isMasterOn = true
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isVpnTransitioning = true, vpnTransitionText = "Применение изменений...") }
+            _uiState.update { it.copy(isVpnTransitioning = true, vpnTransitionText = application.getString(com.example.R.string.status_applying_changes)) }
             
             if (isMasterOn) {
                 // Determine start/stop actions
@@ -960,7 +1017,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
             _uiState.update { 
                 it.copy(
                     isVpnTransitioning = true, 
-                    vpnTransitionText = if (enable) "Включение..." else "Выключение..."
+                    vpnTransitionText = if (enable) application.getString(com.example.R.string.status_turning_on) else application.getString(com.example.R.string.status_turning_off)
                 ) 
             }
             
@@ -1011,7 +1068,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
         }
         viewModelScope.launch {
             val oldIp = _uiState.value.status.publicIp
-            val transitionText = if (enable) "Включение..." else "Выключение..."
+            val transitionText = if (enable) application.getString(com.example.R.string.status_turning_on) else application.getString(com.example.R.string.status_turning_off)
             val isWgActiveCurrently = _uiState.value.status.isWireGuardActive
             _uiState.update {
                 it.copy(
@@ -1020,7 +1077,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                         isOpenVpnActive = enable,
                         isWireGuardActive = if (enable) false else it.status.isWireGuardActive
                     ),
-                    wireguardTransition = if (enable && isWgActiveCurrently) "Выключение..." else if (enable) null else it.wireguardTransition
+                    wireguardTransition = if (enable && isWgActiveCurrently) application.getString(com.example.R.string.status_turning_off) else if (enable) null else it.wireguardTransition
                 )
             }
             try {
@@ -1064,7 +1121,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
         }
         viewModelScope.launch {
             val oldIp = _uiState.value.status.publicIp
-            val transitionText = if (enable) "Включение..." else "Выключение..."
+            val transitionText = if (enable) application.getString(com.example.R.string.status_turning_on) else application.getString(com.example.R.string.status_turning_off)
             val isOpenVpnActiveCurrently = _uiState.value.status.isOpenVpnActive
             _uiState.update {
                 it.copy(
@@ -1073,7 +1130,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                         isWireGuardActive = enable,
                         isOpenVpnActive = if (enable) false else it.status.isOpenVpnActive
                     ),
-                    openVpnTransition = if (enable && isOpenVpnActiveCurrently) "Выключение..." else if (enable) null else it.openVpnTransition
+                    openVpnTransition = if (enable && isOpenVpnActiveCurrently) application.getString(com.example.R.string.status_turning_off) else if (enable) null else it.openVpnTransition
                 )
             }
             try {
@@ -1113,7 +1170,7 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
         val config = _uiState.value.config ?: return
         viewModelScope.launch {
             val oldIp = _uiState.value.status.publicIp
-            val transitionText = if (enable) "Включение..." else "Выключение..."
+            val transitionText = if (enable) application.getString(com.example.R.string.status_turning_on) else application.getString(com.example.R.string.status_turning_off)
             _uiState.update {
                 it.copy(
                     openVpnTransition = transitionText,
@@ -1271,9 +1328,9 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                         isOpenVpnActive = false,
                         isWireGuardActive = false,
                         isLedActive = false,
-                        publicIp = "Перезапуск...",
-                        location = "Ожидание соединения...",
-                        provider = "Пожалуйста, подождите..."
+                        publicIp = application.getString(com.example.R.string.status_restarting),
+                        location = application.getString(com.example.R.string.status_waiting_conn),
+                        provider = application.getString(com.example.R.string.status_please_wait)
                     )
                 ) 
             }
@@ -1333,18 +1390,36 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                                 val rxSpeedMbps = (((rxDiff * 8.0) / (1024.0 * 1024.0)) / timeDiffSecs).toFloat()
                                 val txSpeedMbps = (((txDiff * 8.0) / (1024.0 * 1024.0)) / timeDiffSecs).toFloat()
 
-                                addSpeedToHistory(rxSpeedMbps, txSpeedMbps, telemetry.cpuUsage, telemetry.memoryUsage, telemetry.uptime)
+                                val deviceSpeeds = calculateDeviceSpeeds(telemetry.devices, timeDiffSecs)
+                                val updatedDeviceHistory = _uiState.value.deviceSpeedHistory.toMutableMap()
+                                for (device in deviceSpeeds) {
+                                    val history = updatedDeviceHistory[device.mac] ?: emptyList()
+                                    updatedDeviceHistory[device.mac] = (history + device).takeLast(30)
+                                }
+                                addSpeedToHistory(rxSpeedMbps, txSpeedMbps, telemetry.cpuUsage, telemetry.cpuTemperature, telemetry.memoryUsage, telemetry.uptime, deviceSpeeds, updatedDeviceHistory)
 
                                 if (isWaitingForTrafficAfterReboot) {
                                     isWaitingForTrafficAfterReboot = false
                                     refreshStatus()
                                 }
                             } else {
-                                updateTelemetryOnly(telemetry.cpuUsage, telemetry.memoryUsage, telemetry.uptime)
+                                val speeds = calculateDeviceSpeeds(telemetry.devices, 2.0)
+                        val updatedDeviceHistory = _uiState.value.deviceSpeedHistory.toMutableMap()
+                        for (device in speeds) {
+                            val history = updatedDeviceHistory[device.mac] ?: emptyList()
+                            updatedDeviceHistory[device.mac] = (history + device).takeLast(30)
+                        }
+                        updateTelemetryOnly(telemetry.cpuUsage, telemetry.cpuTemperature, telemetry.memoryUsage, telemetry.uptime, speeds, updatedDeviceHistory)
                             }
                         }
                     } else {
-                        updateTelemetryOnly(telemetry.cpuUsage, telemetry.memoryUsage, telemetry.uptime)
+                        val speeds = calculateDeviceSpeeds(telemetry.devices, 2.0)
+                        val updatedDeviceHistory = _uiState.value.deviceSpeedHistory.toMutableMap()
+                        for (device in speeds) {
+                            val history = updatedDeviceHistory[device.mac] ?: emptyList()
+                            updatedDeviceHistory[device.mac] = (history + device).takeLast(30)
+                        }
+                        updateTelemetryOnly(telemetry.cpuUsage, telemetry.cpuTemperature, telemetry.memoryUsage, telemetry.uptime, speeds, updatedDeviceHistory)
                     }
                     lastRxBytes = rxBytes
                     lastTxBytes = txBytes
@@ -1359,7 +1434,44 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
         }
     }
 
-    private fun addSpeedToHistory(download: Float, upload: Float, cpu: String, mem: String, uptime: String) {
+    
+    private fun calculateDeviceSpeeds(currentDevices: List<com.example.data.DeviceTraffic>, timeDiffSecs: Double): List<DeviceSpeedInfo> {
+        val result = mutableListOf<DeviceSpeedInfo>()
+        for (device in currentDevices) {
+            val last = lastDeviceBytes[device.mac]
+            var dlSpeed = 0f
+            var ulSpeed = 0f
+            if (last != null && timeDiffSecs > 0) {
+                val rxDiff = device.rxBytes - last.first
+                val txDiff = device.txBytes - last.second
+                if (rxDiff >= 0 && txDiff >= 0) {
+                    ulSpeed = (((rxDiff * 8.0) / (1024.0 * 1024.0)) / timeDiffSecs).toFloat()
+                    dlSpeed = (((txDiff * 8.0) / (1024.0 * 1024.0)) / timeDiffSecs).toFloat()
+                }
+            }
+            lastDeviceBytes[device.mac] = Pair(device.rxBytes, device.txBytes)
+            result.add(
+                DeviceSpeedInfo(
+                    mac = device.mac,
+                    ip = device.ip,
+                    hostname = device.hostname,
+                    connectionType = device.connectionType,
+                    portMappingConfidence = device.portMappingConfidence,
+                    downloadSpeedMbps = dlSpeed,
+                    uploadSpeedMbps = ulSpeed,
+                    downloadBytes = device.txBytes, // From router's perspective, TX to device is device's download
+                    uploadBytes = device.rxBytes,  // From router's perspective, RX from device is device's upload
+                    downloadMonthBytes = device.txMonthBytes,
+                    uploadMonthBytes = device.rxMonthBytes,
+                    wifiRxBitrate = device.wifiRxBitrate,
+                    wifiTxBitrate = device.wifiTxBitrate
+                )
+            )
+        }
+        return result
+    }
+
+    private fun addSpeedToHistory(download: Float, upload: Float, cpu: String, cpuTemp: Float?, mem: String, uptime: String, devices: List<DeviceSpeedInfo>, deviceHistory: Map<String, List<DeviceSpeedInfo>>) {
         _uiState.update { currentState ->
             val cleanCpu = cpu.trim()
             val cpuPercent = if (cleanCpu.endsWith("%")) {
@@ -1375,7 +1487,8 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
             val snapshot = SpeedSnapshot(
                 downloadSpeedMbps = download,
                 uploadSpeedMbps = upload,
-                cpuUsagePercent = cpuPercent.coerceIn(0f, 100f)
+                cpuUsagePercent = cpuPercent.coerceIn(0f, 100f),
+                cpuTemperature = cpuTemp
             )
             val updatedHistory = (currentState.speedHistory + snapshot).takeLast(30)
             currentState.copy(
@@ -1383,18 +1496,24 @@ class RouterViewModel(private val repository: RouterRepository) : ViewModel() {
                 currentDownloadSpeed = download,
                 currentUploadSpeed = upload,
                 cpuUsage = cpu,
+                cpuTemperature = cpuTemp,
                 memoryUsage = mem,
-                uptime = uptime
+                uptime = uptime,
+                deviceSpeeds = devices,
+                deviceSpeedHistory = deviceHistory
             )
         }
     }
 
-    private fun updateTelemetryOnly(cpu: String, mem: String, uptime: String) {
+    private fun updateTelemetryOnly(cpu: String, cpuTemp: Float?, mem: String, uptime: String, devices: List<DeviceSpeedInfo>, deviceHistory: Map<String, List<DeviceSpeedInfo>>) {
         _uiState.update { currentState ->
             currentState.copy(
                 cpuUsage = cpu,
+                cpuTemperature = cpuTemp,
                 memoryUsage = mem,
-                uptime = uptime
+                uptime = uptime,
+                deviceSpeeds = devices,
+                deviceSpeedHistory = deviceHistory
             )
         }
     }

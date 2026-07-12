@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Openwrt Router Control</string>
     <string name="shortcut_led_on_short">Habilitar LED</string>
@@ -107,4 +108,66 @@
     <string name="vpn_available_title">VPNs disponíveis. Selecione as que devem ser ativadas</string>
     <string name="vpn_apply">Aplicar</string>
     <string name="vpn_amneziawg_interface">Interface AmneziaWG</string>
-</resources>
+    <string name="devices_title">Dispositivos</string>
+    <string name="select_device_for_chart">Selecione um dispositivo para ver seu gráfico</string>
+    <string name="click_device_for_chart">Toque em um dispositivo para ver seu gráfico</string>
+    <string name="no_connected_devices">Nenhum dispositivo conectado ou dados indisponíveis.</string>
+    <string name="connected_devices_count">%1$d dispositivos conectados</string>
+    <string name="link_speed">Velocidade da ligação:</string>
+    <string name="port_mapping_warning">Aviso: para este tipo de conexão, o tráfego total do porta física do roteador é mostrado, não apenas este dispositivo.</string>
+    <string name="traffic_not_available">Tráfego não disponível neste roteador</string>
+    <string name="download_speed_format">Download: %.2f Mbps</string>
+    <string name="upload_speed_format">Upload: %.2f Mbps</string>
+    <string name="today_traffic_kb">hoje %.1f KB</string>
+    <string name="today_traffic_mb">hoje %.1f MB</string>
+    <string name="today_traffic_gb">hoje %.1f GB</string>
+    <string name="traffic_label">hoje:</string>
+    <string name="no_ethernet_devices">Nenhum dispositivo conectado às portas Ethernet foi detectado</string>
+    <string name="wifi_6_ghz">Wi-Fi 6 GHz</string>
+    <string name="wifi_5_ghz">Wi-Fi 5 GHz</string>
+    <string name="wifi_24_ghz">Wi-Fi 2.4 GHz</string>
+    <string name="wifi_other">Wi-Fi Outro</string>
+    <string name="ethernet">Ethernet</string>
+    <string name="dns_desc_cloudflare">Um dos provedores de DNS público mais rápidos do mundo, com foco na privacidade.</string>
+    <string name="dns_cloudflare_default">Básico (acesso rápido e privacidade)</string>
+    <string name="dns_cloudflare_malware">Bloqueio de malware</string>
+    <string name="dns_cloudflare_family">Família (bloqueio de malware + conteúdo adulto + SafeSearch)</string>
+    <string name="dns_desc_opendns">Um dos serviços mais antigos e confiáveis ​​da Cisco.</string>
+    <string name="dns_opendns_home">Básico (Home/sem filtragem)</string>
+    <string name="dns_opendns_family">Família (Family Shield / filtragem pré-instalada)</string>
+    <string name="dns_opendns_family_desc">Adequado para roteadores, filtra conteúdo adulto sem a necessidade de criar uma conta.</string>
+    <string name="dns_desc_cleanbrowsing">Um serviço especializado focado exclusivamente no bloqueio de conteúdos indesejados.</string>
+    <string name="dns_cleanbrowsing_security">Filtro de segurança</string>
+    <string name="dns_cleanbrowsing_adult">Filtro Adulto</string>
+    <string name="dns_cleanbrowsing_family">Filtro Familiar</string>
+    <string name="dns_cleanbrowsing_family_desc">Bloqueia proxies, túneis VPN, pornografia e permite estritamente a pesquisa segura no Google/YouTube.</string>
+    <string name="dns_desc_adguard">A melhor escolha para quem quer se livrar da publicidade no nível de solicitação da rede.</string>
+    <string name="dns_adguard_default">Básico (bloqueia anúncios, rastreadores e phishing)</string>
+    <string name="dns_adguard_family">Família (básico + conteúdo adulto + SafeSearch)</string>
+    <string name="dns_adguard_unfiltered">Sem filtragem (apenas serviço rápido e confiável)</string>
+    <string name="dns_desc_controld">DNS moderno e muito flexível dos criadores do Windscribe.</string>
+    <string name="dns_controld_uncensored">Sem filtragem (Internet pura/Sem censura)</string>
+    <string name="dns_controld_ads">Bloqueio de anúncios (anúncios e rastreadores)</string>
+    <string name="dns_controld_family">Família (todos: publicidade + redes sociais + conteúdo adulto)</string>
+    <string name="dns_desc_quad9">Atendimento com ênfase em segurança cibernética.</string>
+    <string name="dns_quad9_default">Padrão (padrão/bloqueia phishing e malware)</string>
+    <string name="dns_quad9_ecs">Suporte padrão + ECS (com suporte ECS)</string>
+    <string name="dns_quad9_ecs_desc">Transfere uma pequena parte do seu endereço IP (sub-rede do cliente EDNS) para um roteamento mais preciso para servidores CDN.</string>
+    <string name="dns_desc_google">Um dos serviços públicos mais populares.</string>
+    <string name="dns_google_default">Padrão</string>
+    <string name="port_approximate">(aproximado)</string>
+    <string name="port_unknown">(desconhecido)</string>
+    <string name="status_restarting">Reiniciar...</string>
+    <string name="status_waiting_conn">Aguardando conexão...</string>
+    <string name="status_please_wait">Por favor, aguarde...</string>
+    <string name="ssh_connected">SSH conectado</string>
+    <string name="ssh_terminal_active">Terminal ativo</string>
+    <string name="ssh_disconnect">Desativar</string>
+    <string name="format_mb_percent" formatted="false">%.1fMB (%.0f%%)</string>
+    <string name="format_days">%dd</string>
+    <string name="format_hours">%dh</string>
+    <string name="format_minutes">%dm</string>
+    <string name="label_today_colon">Hoje:</string>
+    <string name="label_ip_colon">IP:</string>
+    <string name="label_mac_colon">MAC:</string>
+<string name="msg_press_device_graph">Toque em um dispositivo para ver seu gráfico</string><string name="msg_no_devices">Nenhum dispositivo conectado</string><string name="msg_devices_connected">%1$d dispositivos conectados</string><string name="msg_no_ethernet">Nenhum dispositivo ethernet</string><string name="format_speed_dl">Download: %.2f Mbps</string><string name="format_speed_ul">Upload: %.2f Mbps</string><string name="format_bytes_kb">%.1f KB</string><string name="format_bytes_mb">%.1f MB</string><string name="format_bytes_gb">%.1f GB</string><string name="msg_link_speed">Velocidade do link: %1$s Rx / %2$s Tx</string><string name="msg_shared_traffic_warning">Aviso: o tráfego é compartilhado para esta porta</string><string name="msg_traffic_unavailable">Tráfego indisponível</string><string name="msg_install_nlbwmon">Instale nlbwmon para monitorar o tráfego.</string><string name="format_download_speed">Download: %.2f Mbps</string><string name="format_upload_speed">Upload: %.2f Mbps</string><string name="msg_no_selected_device">Nenhum dispositivo selecionado</string><string name="action_close">Fechar</string></resources>

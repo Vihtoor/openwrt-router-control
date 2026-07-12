@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Openwrt Router Control</string>
     <string name="shortcut_led_on_short">Ota LED käyttöön</string>
@@ -107,4 +108,66 @@
     <string name="vpn_available_title">Saatavilla olevat VPN:t. Valitse ne, jotka otetaan käyttöön</string>
     <string name="vpn_apply">Käytä</string>
     <string name="vpn_amneziawg_interface">AmneziaWG-rajapinta</string>
-</resources>
+    <string name="devices_title">Laitteet</string>
+    <string name="select_device_for_chart">Valitse laite nähdäksesi sen kaavion</string>
+    <string name="click_device_for_chart">Napauta laitetta nähdäksesi sen kaavion</string>
+    <string name="no_connected_devices">Ei yhdistettyjä laitteita tai tietoja ei saatavilla.</string>
+    <string name="connected_devices_count">%1$d laitetta yhdistetty</string>
+    <string name="link_speed">Linkin nopeus:</string>
+    <string name="port_mapping_warning">Varoitus: tässä yhteystyypissä näytetään reitittimen fyysisen portin kokonaisliikenne, ei vain tätä laitetta.</string>
+    <string name="traffic_not_available">Liikenne ei ole saatavilla tällä reitittimellä</string>
+    <string name="download_speed_format">Lataus: %.2f Mbps</string>
+    <string name="upload_speed_format">Lähetys: %.2f Mbps</string>
+    <string name="today_traffic_kb">tänään %.1f KB</string>
+    <string name="today_traffic_mb">tänään %.1f MB</string>
+    <string name="today_traffic_gb">tänään %.1f GB</string>
+    <string name="traffic_label">tänään:</string>
+    <string name="no_ethernet_devices">Ethernet-portteihin kytkettyjä laitteita ei havaittu</string>
+    <string name="wifi_6_ghz">Wi-Fi 6 GHz</string>
+    <string name="wifi_5_ghz">Wi-Fi 5 GHz</string>
+    <string name="wifi_24_ghz">Wi-Fi 2.4 GHz</string>
+    <string name="wifi_other">Wi-Fi Muu</string>
+    <string name="ethernet">Ethernet</string>
+    <string name="dns_desc_cloudflare">Yksi maailman nopeimmista julkisista DNS-palveluntarjoajista, joka keskittyy yksityisyyteen.</string>
+    <string name="dns_cloudflare_default">Perus (nopea pääsy ja yksityisyys)</string>
+    <string name="dns_cloudflare_malware">Haittaohjelmien esto</string>
+    <string name="dns_cloudflare_family">Perhe (haittaohjelmien esto + aikuisille suunnattu sisältö + SafeSearch)</string>
+    <string name="dns_desc_opendns">Yksi vanhimmista ja luotettavimmista Ciscon omistamista palveluista.</string>
+    <string name="dns_opendns_home">Perus (Koti / ei suodatusta)</string>
+    <string name="dns_opendns_family">Perhe (Family Shield / esiasennettu suodatus)</string>
+    <string name="dns_opendns_family_desc">Sopii reitittimille, suodattaa aikuisille suunnatun sisällön ilman, että sinun tarvitsee luoda tiliä.</string>
+    <string name="dns_desc_cleanbrowsing">Erikoispalvelu, joka keskittyy yksinomaan ei-toivotun sisällön estämiseen.</string>
+    <string name="dns_cleanbrowsing_security">Suojaussuodatin</string>
+    <string name="dns_cleanbrowsing_adult">Aikuisten suodatin</string>
+    <string name="dns_cleanbrowsing_family">Perhesuodatin</string>
+    <string name="dns_cleanbrowsing_family_desc">Estää välityspalvelimet, VPN-tunnelit, pornografian ja mahdollistaa ehdottomasti turvallisen haun Googlessa/YouTubessa.</string>
+    <string name="dns_desc_adguard">Paras valinta niille, jotka haluavat päästä eroon mainonnasta verkkopyyntötasolla.</string>
+    <string name="dns_adguard_default">Perus (estää mainokset, seurantalaitteet ja tietojenkalastelun)</string>
+    <string name="dns_adguard_family">Perhe (perus + aikuisille tarkoitettu sisältö + SafeSearch)</string>
+    <string name="dns_adguard_unfiltered">Suodattamaton (vain nopea ja luotettava palvelu)</string>
+    <string name="dns_desc_controld">Moderni ja erittäin joustava DNS Windscriben tekijöiltä.</string>
+    <string name="dns_controld_uncensored">Suodattamaton (puhdas Internet / sensuroimaton)</string>
+    <string name="dns_controld_ads">Mainosten esto (mainokset ja seurantalaitteet)</string>
+    <string name="dns_controld_family">Perhe (kaikki: mainonta + sosiaaliset verkostot + aikuisille tarkoitettu sisältö)</string>
+    <string name="dns_desc_quad9">Palvelu, joka painottaa kyberturvallisuutta.</string>
+    <string name="dns_quad9_default">Vakio (oletus/estää tietojenkalastelun ja haittaohjelmat)</string>
+    <string name="dns_quad9_ecs">Vakio + ECS-tuki (ECS-tuella)</string>
+    <string name="dns_quad9_ecs_desc">Siirtää pienen osan IP-osoitteestasi (EDNS-asiakasaliverkko) tarkempaa reititystä varten CDN-palvelimille.</string>
+    <string name="dns_desc_google">Yksi suosituimmista julkisista palveluista.</string>
+    <string name="dns_google_default">Vakio</string>
+    <string name="port_approximate">(arvio)</string>
+    <string name="port_unknown">(tuntematon)</string>
+    <string name="status_restarting">Käynnistä uudelleen...</string>
+    <string name="status_waiting_conn">Odotetaan yhteyttä...</string>
+    <string name="status_please_wait">Odota...</string>
+    <string name="ssh_connected">SSH yhdistetty</string>
+    <string name="ssh_terminal_active">Pääte aktiivinen</string>
+    <string name="ssh_disconnect">Poista käytöstä</string>
+    <string name="format_mb_percent" formatted="false">%.1f MB (%.0f%%)</string>
+    <string name="format_days">%dd</string>
+    <string name="format_hours">%dh</string>
+    <string name="format_minutes">%dm</string>
+    <string name="label_today_colon">Tänään:</string>
+    <string name="label_ip_colon">IP:</string>
+    <string name="label_mac_colon">MAC:</string>
+<string name="msg_press_device_graph">Napauta laitetta nähdäksesi sen kaavion</string><string name="msg_no_devices">Ei yhdistettyjä laitteita</string><string name="msg_devices_connected">%1$d laitetta yhdistetty</string><string name="msg_no_ethernet">Ei ethernet-laitteita</string><string name="format_speed_dl">Lataus: %.2f Mbps</string><string name="format_speed_ul">Lähetys: %.2f Mbps</string><string name="format_bytes_kb">%.1f kt</string><string name="format_bytes_mb">%.1f Mt</string><string name="format_bytes_gb">%.1f Gt</string><string name="msg_link_speed">Linkin nopeus: %1$s Rx / %2$s Tx</string><string name="msg_shared_traffic_warning">Varoitus: liikenne on jaettu tälle portille</string><string name="msg_traffic_unavailable">Liikenne ei ole saatavilla</string><string name="msg_install_nlbwmon">Asenna nlbwmon liikenteen seuraamiseksi.</string><string name="format_download_speed">Lataus: %.2f Mbps</string><string name="format_upload_speed">Lähetys: %.2f Mbps</string><string name="msg_no_selected_device">Laitetta ei ole valittu</string><string name="action_close">Sulje</string></resources>

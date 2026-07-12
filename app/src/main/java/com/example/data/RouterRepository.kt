@@ -1,5 +1,6 @@
 package com.example.data
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.flow.Flow
 
@@ -20,26 +21,132 @@ data class RouterStatus(
     val isCustomDns: Boolean = false
 )
 
+
+enum class PortMappingConfidence {
+    EXACT, APPROXIMATE, UNKNOWN
+}
+
+data class DeviceTraffic(
+    val mac: String,
+    val ip: String,
+    val hostname: String,
+    val connectionType: String,
+    val rxBytes: Long,
+    val txBytes: Long,
+    val rxMonthBytes: Long = 0L,
+    val txMonthBytes: Long = 0L,
+    val wifiRxBitrate: String? = null,
+    val wifiTxBitrate: String? = null,
+    val portMappingConfidence: PortMappingConfidence = PortMappingConfidence.EXACT
+)
+
 data class TrafficAndTelemetry(
     val rxBytes: Long = 0L,
     val txBytes: Long = 0L,
     val cpuUsage: String = "—",
+    val cpuTemperature: Float? = null,
     val memoryUsage: String = "—",
-    val uptime: String = "—"
+    val uptime: String = "—",
+    val devices: List<DeviceTraffic> = emptyList(),
+    val hasWiredFdbSupport: Boolean = true
 )
 
 class RouterRepository(
+    private val context: Context,
     private val dao: RouterDao,
     private val sshClientManager: SshClientManager
 ) {
+    data class WifiCacheEntry(val timestamp: Long, val band: String)
+
     companion object {
         @Volatile var lastTriggerName: String? = null
         @Volatile var hasUciTriggerError: Boolean = false
+        val recentWifiMacs = java.util.concurrent.ConcurrentHashMap<String, WifiCacheEntry>()
+        @Volatile var cachedHasWiredFdbEntries = false
+        val deviceOfflineCount = java.util.concurrent.ConcurrentHashMap<String, Int>()
     }
 
     val routerConfigFlow: Flow<RouterConfig?> = dao.getActiveRouterConfigFlow()
     val allRouterConfigsFlow: Flow<List<RouterConfig>> = dao.getAllRouterConfigsFlow()
     val consoleLogsFlow: Flow<List<ConsoleLog>> = dao.getConsoleLogsFlow()
+
+    suspend fun checkAndSaveRouterCapabilities(config: RouterConfig): RouterConfig {
+        if (config.capabilities.switchArchitecture != SwitchArchitecture.UNKNOWN &&
+            System.currentTimeMillis() - config.capabilities.lastCheckedTimestamp < 0L) { // disabled for now
+            return config
+        }
+        val checkCmd = """
+            echo '===ARCH==='
+            if ls /sys/class/net/ 2>/dev/null | grep -E '^lan[0-9]+$' >/dev/null 2>&1; then
+                echo 'DSA'
+            elif which swconfig >/dev/null 2>&1 && swconfig list >/dev/null 2>&1; then
+                echo 'SWCONFIG'
+            elif [ -f /etc/board.json ] && grep -q '"switch"' /etc/board.json 2>/dev/null; then
+                echo 'SWCONFIG'
+            else
+                echo 'UNSUPPORTED'
+            fi
+            echo '===BRIDGE==='
+            if which bridge >/dev/null 2>&1; then echo 1; else echo 0; fi
+            echo '===SWCONFIG_UTIL==='
+            if which swconfig >/dev/null 2>&1; then echo 1; else echo 0; fi
+            echo '===BOARD_JSON==='
+            if [ -f /etc/board.json ] && grep -q '"switch"' /etc/board.json 2>/dev/null; then echo 1; else echo 0; fi
+            echo '===TEMP_SRC==='
+            if ls /sys/class/thermal/ 2>/dev/null | grep thermal_zone >/dev/null 2>&1; then
+                echo 'THERMAL_ZONE'
+                ls -d /sys/class/thermal/thermal_zone* 2>/dev/null | tr '\n' ',' | sed 's/,$//'
+            elif find /sys/class/hwmon/ -name "temp*_input" 2>/dev/null | grep input >/dev/null 2>&1; then
+                echo 'HWMON'
+                find /sys/class/hwmon/ -name "temp*_input" 2>/dev/null | tr '\n' ',' | sed 's/,$//'
+            else
+                echo 'UNSUPPORTED'
+            fi
+        """.trimIndent()
+        
+        return try {
+            val res = sshClientManager.executeCommand(config, checkCmd)
+            val out = res.stdout
+            val archPart = extractSection(out, "===ARCH===", "===BRIDGE===").trim()
+            val bridgePart = extractSection(out, "===BRIDGE===", "===SWCONFIG_UTIL===").trim()
+            val swconfigPart = extractSection(out, "===SWCONFIG_UTIL===", "===BOARD_JSON===").trim()
+            val boardPart = extractSection(out, "===BOARD_JSON===", "===TEMP_SRC===").trim()
+            val tempSrcPart = extractSection(out, "===TEMP_SRC===", null).trim()
+            
+            var tempSource = "UNSUPPORTED"
+            var tempPaths = ""
+            if (tempSrcPart.startsWith("THERMAL_ZONE")) {
+                tempSource = "THERMAL_ZONE"
+                tempPaths = tempSrcPart.removePrefix("THERMAL_ZONE").trim()
+            } else if (tempSrcPart.startsWith("HWMON")) {
+                tempSource = "HWMON"
+                tempPaths = tempSrcPart.removePrefix("HWMON").trim()
+            }
+
+            val arch = when (archPart) {
+                "DSA" -> SwitchArchitecture.DSA
+                "SWCONFIG" -> SwitchArchitecture.SWCONFIG
+                else -> SwitchArchitecture.UNSUPPORTED
+            }
+
+                        val caps = RouterCapabilities(
+                switchArchitecture = arch,
+                hasBridgeUtil = bridgePart == "1",
+                hasSwconfigUtil = swconfigPart == "1",
+                hasBoardJsonWithSwitchSection = boardPart == "1",
+                hasMibCounters = config.capabilities.hasMibCounters,
+                temperatureSource = tempSource,
+                temperaturePaths = tempPaths,
+                lastCheckedTimestamp = System.currentTimeMillis()
+            )
+            val updatedConfig = config.copy(capabilities = caps)
+            dao.saveRouterConfig(updatedConfig)
+            updatedConfig
+        } catch (e: Exception) {
+            Log.e("RouterRepository", "Failed to check router capabilities: ${e.message}", e)
+            config
+        }
+    }
 
     suspend fun saveRouterConfig(config: RouterConfig): Long {
         if (config.isActive) {
@@ -562,7 +669,38 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
     }
 
     suspend fun queryWanTrafficBytes(config: RouterConfig): TrafficAndTelemetry {
-        val cmd = "route_iface=\$(ip route | grep '^default' | head -n1 | awk '{print \$5}'); if [ -n \"\$route_iface\" ] && [ -d \"/sys/class/net/\$route_iface\" ]; then cat /sys/class/net/\$route_iface/statistics/rx_bytes; cat /sys/class/net/\$route_iface/statistics/tx_bytes; else cat /proc/net/dev | grep -E \"(eth|wan|dsl|wlan|rmnet|ppp)\" | head -n1 | tr ':' ' ' | awk '{print \$2; print \$10}'; fi; echo '===CPU==='; top_out=\$(top -b -n 1 | grep -i 'cpu' | head -n 1); if [ -n \"\$top_out\" ]; then echo \"\$top_out\"; else cat /proc/loadavg 2>/dev/null; fi; echo '===MEM==='; cat /proc/meminfo 2>/dev/null | grep -E '^(MemTotal|MemFree|MemAvailable|Buffers|Cached):'; echo '===UPTIME==='; cat /proc/uptime 2>/dev/null"
+        val arch = config.capabilities.switchArchitecture
+        val hasBridge = config.capabilities.hasBridgeUtil
+        val hasSwconfig = config.capabilities.hasSwconfigUtil
+        
+        var ethernetCmd = ""
+        if (hasBridge) {
+            ethernetCmd += "echo '===BRIDGE_FDB==='; bridge fdb show br-lan 2>/dev/null | grep dev | grep -v 'self'; "
+        }
+        if (arch == SwitchArchitecture.DSA) {
+            ethernetCmd += "echo '===DSA_PORTS==='; for lan in \$(ls /sys/class/net/ 2>/dev/null | grep -E '^lan[0-9]+\$'); do carrier=\$(cat /sys/class/net/\$lan/carrier 2>/dev/null || echo 0); speed=\$(cat /sys/class/net/\$lan/speed 2>/dev/null || echo 0); rx=\$(cat /sys/class/net/\$lan/statistics/rx_bytes 2>/dev/null || echo 0); tx=\$(cat /sys/class/net/\$lan/statistics/tx_bytes 2>/dev/null || echo 0); echo \"\$lan \$carrier \$speed \$rx \$tx\"; done; "
+        } else if (arch == SwitchArchitecture.SWCONFIG && hasSwconfig) {
+            ethernetCmd += "echo '===SWCONFIG_PORTS==='; swconfig dev switch0 show 2>/dev/null; "
+        }
+
+        if (arch == SwitchArchitecture.SWCONFIG && config.capabilities.hasBoardJsonWithSwitchSection) {
+            ethernetCmd += "echo '===BOARD_JSON_SWITCH==='; cat /etc/board.json 2>/dev/null; "
+        }
+
+        var tempCmd = ""
+        val tempSource = config.capabilities.temperatureSource
+        val tempPaths = config.capabilities.temperaturePaths
+        if (tempSource == "THERMAL_ZONE" || tempSource == "HWMON") {
+            val paths = tempPaths.split(",").filter { it.isNotBlank() }.joinToString(" ")
+            if (paths.isNotEmpty()) {
+                if (tempSource == "THERMAL_ZONE") {
+                    tempCmd = "echo '===TEMP==='; for p in $paths; do if [ -f \$p/temp ]; then cat \$p/temp; fi; done; "
+                } else if (tempSource == "HWMON") {
+                    tempCmd = "echo '===TEMP==='; for p in $paths; do if [ -f \$p ]; then cat \$p; fi; done; "
+                }
+            }
+        }
+        val cmd = "route_iface=\$(ip route | grep '^default' | head -n1 | awk '{print \$5}'); if [ -n \"\$route_iface\" ] && [ -d \"/sys/class/net/\$route_iface\" ]; then cat /sys/class/net/\$route_iface/statistics/rx_bytes; cat /sys/class/net/\$route_iface/statistics/tx_bytes; else cat /proc/net/dev | grep -E \"(eth|wan|dsl|wlan|rmnet|ppp)\" | head -n1 | tr ':' ' ' | awk '{print \$2; print \$10}'; fi; echo '===CPU==='; top_out=\$(top -b -n 1 | grep -i 'cpu' | head -n 1); if [ -n \"\$top_out\" ]; then echo \"\$top_out\"; else cat /proc/loadavg 2>/dev/null; fi; echo '===MEM==='; cat /proc/meminfo 2>/dev/null | grep -E '^(MemTotal|MemFree|MemAvailable|Buffers|Cached):'; echo '===UPTIME==='; cat /proc/uptime 2>/dev/null; echo '===WIFI==='; for iface in \$(iw dev 2>/dev/null | grep Interface | awk '{print \$2}'); do freq=\$(iw dev \$iface info 2>/dev/null | grep -oE '[0-9]+ MHz' | head -n1 | awk '{print \$1}'); [ -z \"\$freq\" ] && freq=0; iw dev \$iface station dump | awk -v ifc=\"\$iface\" -v f=\"\$freq\" 'BEGIN{mac=\"\"} /^Station/ { if(mac!=\"\") { if(rxb==\"\") rxb=\"-\"; if(txb==\"\") txb=\"-\"; print mac, rx, tx, ifc, f, rxb, txb } mac=\$2; rx=0; tx=0; rxb=\"\"; txb=\"\" } /rx bytes:/ { rx=\$3 } /tx bytes:/ { tx=\$3 } /rx bitrate:/ { rxb=\$3\" \"\$4 } /tx bitrate:/ { txb=\$3\" \"\$4 } END { if(mac!=\"\") { if(rxb==\"\") rxb=\"-\"; if(txb==\"\") txb=\"-\"; print mac, rx, tx, ifc, f, rxb, txb } }'; done; echo '===LEASES==='; cat /tmp/dhcp.leases 2>/dev/null; echo '===ARP==='; cat /proc/net/arp 2>/dev/null; echo '===NLBWMON==='; if command -v nlbw >/dev/null; then nlbw -c csv -g mac,date 2>/dev/null | grep -E \"(mac|\$(date +%F))\"; fi; $ethernetCmd$tempCmd"
         return try {
             val res = sshClientManager.executeCommand(config, cmd)
             val stdout = res.stdout
@@ -573,26 +711,435 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
             }
             val cpuPart = extractSection(stdout, "===CPU===", "===MEM===")
             val memPart = extractSection(stdout, "===MEM===", "===UPTIME===")
-            val uptimePart = extractSection(stdout, "===UPTIME===", null)
+            val uptimePart = extractSection(stdout, "===UPTIME===", "===WIFI===")
+            val wifiPart = extractSection(stdout, "===WIFI===", "===LEASES===")
+            val leasesPart = extractSection(stdout, "===LEASES===", "===ARP===")
+            val arpPart = extractSection(stdout, "===ARP===", "===NLBWMON===")
+            val nlbwPart = extractSection(stdout, "===NLBWMON===", "===BRIDGE_FDB===").ifEmpty {
+                val idx = stdout.indexOf("===NLBWMON===")
+                if (idx != -1) stdout.substring(idx + "===NLBWMON===".length).substringBefore("===") else ""
+            }
+
+            var bridgeFdbPart = ""
+            var dsaPortsPart = ""
+            var swconfigPortsPart = ""
+            var boardJsonPart = ""
+
+            if (stdout.contains("===BRIDGE_FDB===")) {
+                bridgeFdbPart = extractSection(stdout, "===BRIDGE_FDB===", "===").ifEmpty {
+                    stdout.substringAfter("===BRIDGE_FDB===").substringBefore("===")
+                }
+            }
+            if (stdout.contains("===DSA_PORTS===")) {
+                dsaPortsPart = extractSection(stdout, "===DSA_PORTS===", "===").ifEmpty {
+                    stdout.substringAfter("===DSA_PORTS===").substringBefore("===")
+                }
+            }
+            if (stdout.contains("===SWCONFIG_PORTS===")) {
+                swconfigPortsPart = extractSection(stdout, "===SWCONFIG_PORTS===", "===").ifEmpty {
+                    stdout.substringAfter("===SWCONFIG_PORTS===").substringBefore("===")
+                }
+            }
+            if (stdout.contains("===BOARD_JSON_SWITCH===")) {
+                boardJsonPart = extractSection(stdout, "===BOARD_JSON_SWITCH===", "===").ifEmpty {
+                    stdout.substringAfter("===BOARD_JSON_SWITCH===").substringBefore("===")
+                }
+            }
 
             val rxTxLines = rxTxPart.lines().map { it.trim() }.filter { it.isNotEmpty() }
             val rx = rxTxLines.getOrNull(0)?.toLongOrNull() ?: 0L
             val tx = rxTxLines.getOrNull(1)?.toLongOrNull() ?: 0L
 
+            var tempPart = ""
+            if (stdout.contains("===TEMP===")) {
+                tempPart = stdout.substringAfter("===TEMP===").substringBefore("===").trim()
+            }
+            var cpuTemperature: Float? = null
+            if (tempPart.isNotEmpty()) {
+                val tempValues = tempPart.lines().mapNotNull { it.trim().toFloatOrNull() }
+                if (tempValues.isNotEmpty()) {
+                    val tempsInC = tempValues.map { it / 1000f }.filter { it in -20f..150f }
+                    if (tempsInC.isNotEmpty()) {
+                        cpuTemperature = tempsInC.maxOrNull()
+                    }
+                }
+            }
             val cpuUsage = parseCpuUsage(cpuPart)
             val memoryUsage = parseMemoryUsage(memPart.lines())
             val uptime = parseUptime(uptimePart)
 
+            val devices = parseDevices(
+                wifiPart, leasesPart, arpPart, nlbwPart, config,
+                bridgeFdbPart, dsaPortsPart, swconfigPortsPart, boardJsonPart
+            )
+            
+            val hasWiredFdbSupport = if (bridgeFdbPart.contains("dev") && !bridgeFdbPart.contains("permanent") && !bridgeFdbPart.contains("self")) true else {
+                // Actually parseDevices already computes hasWiredFdbEntries. Let's just re-parse roughly or change parseDevices signature.
+                // Wait, it's easier to just return it from parseDevices, but parseDevices returns List<DeviceTraffic>.
+                // I will just check here.
+                var hasWired = false
+                for (line in bridgeFdbPart.lines()) {
+                    val parts = line.trim().split("""\s+""".toRegex())
+                    if (parts.size >= 3 && parts[1] == "dev") {
+                        val dev = parts[2]
+                        val isPermanent = line.contains("permanent")
+                        val isSelf = line.contains("self")
+                        val isWifiDev = dev.startsWith("phy") || dev.startsWith("wlan") || dev.startsWith("ath") || dev.startsWith("ra") || dev.startsWith("rai") || dev.contains("ap")
+                        if (!isPermanent && !isSelf && !isWifiDev) {
+                            hasWired = true
+                            break
+                        }
+                    }
+                }
+                hasWired
+            }
+            
             TrafficAndTelemetry(
                 rxBytes = rx,
                 txBytes = tx,
                 cpuUsage = cpuUsage,
+                cpuTemperature = cpuTemperature,
                 memoryUsage = memoryUsage,
-                uptime = uptime
+                uptime = uptime,
+                devices = devices,
+                hasWiredFdbSupport = hasWiredFdbSupport
             )
+
         } catch (e: Exception) {
             TrafficAndTelemetry()
         }
+    }
+
+    private fun parseDevices(
+        wifiPart: String, leasesPart: String, arpPart: String, nlbwPart: String,
+        config: RouterConfig, bridgeFdbPart: String, dsaPortsPart: String,
+        swconfigPortsPart: String, boardJsonPart: String
+    ): List<DeviceTraffic> {
+        val routerIp = config.ipAddress
+        val nlbwRx = mutableMapOf<String, Long>()
+        val nlbwTx = mutableMapOf<String, Long>()
+        var rxIdx = -1
+        var txIdx = -1
+        var macIdx = 0
+        for ((idx, line) in nlbwPart.lines().withIndex()) {
+            val parts = line.trim().split(",")
+            if (idx == 0 && (line.contains("rx_bytes", ignoreCase = true) || line.contains("rx", ignoreCase = true))) {
+                for (i in parts.indices) {
+                    val p = parts[i].replace("\"", "").lowercase()
+                    if (p.contains("rx")) rxIdx = i
+                    if (p.contains("tx")) txIdx = i
+                    if (p.contains("mac")) macIdx = i
+                }
+                continue
+            }
+            if (rxIdx == -1) {
+                if (parts.size >= 6) {
+                    macIdx = 0
+                    rxIdx = 3
+                    txIdx = 4
+                } else if (parts.size >= 4) {
+                    macIdx = 0
+                    rxIdx = 2
+                    txIdx = 3
+                }
+            }
+            
+            if (parts.size > maxOf(rxIdx, txIdx, macIdx) && rxIdx != -1) {
+                val mac = parts[macIdx].replace("\"", "").lowercase().trim().replace("-", ":")
+                val rx = parts[rxIdx].replace("\"", "").toLongOrNull() ?: 0L
+                val tx = parts[txIdx].replace("\"", "").toLongOrNull() ?: 0L
+                nlbwRx[mac] = rx
+                nlbwTx[mac] = tx
+            }
+        }
+        val macToHostname = mutableMapOf<String, String>()
+        val macToIp = mutableMapOf<String, String>()
+        val activeMacs = mutableSetOf<String>()
+        val macToInterface = mutableMapOf<String, String>()
+        
+        for (line in leasesPart.lines()) {
+            val parts = line.trim().split("""\s+""".toRegex())
+            if (parts.size >= 4) {
+                val mac = parts[1].lowercase().trim().replace("-", ":")
+                val ip = parts[2]
+                val hostname = parts[3].takeIf { it != "*" } ?: "Unknown"
+                macToHostname[mac] = hostname
+                macToIp[mac] = ip
+                
+                activeMacs.add(mac)
+                macToInterface[mac] = "br-lan"
+            }
+        }
+        
+        for (line in arpPart.lines()) {
+            if (line.trim().startsWith("IP address") || line.trim().isEmpty()) continue
+            
+            val parts = line.trim().split("""\s+""".toRegex())
+            if (parts.size >= 6 && parts[3] != "00:00:00:00:00:00") {
+                val flags = parts[2]
+                val ip = parts[0]
+                val mac = parts[3].lowercase().trim().replace("-", ":")
+                val dev = parts.last()
+                
+                if (dev == "br-lan" || dev.startsWith("lan") || dev.startsWith("eth")) {
+                    if (!activeMacs.contains(mac)) {
+                        activeMacs.add(mac)
+                        macToHostname[mac] = "Unknown"
+                        macToIp[mac] = ip
+                    }
+                    macToInterface[mac] = dev
+                    if (flags != "0x0") {
+                        macToIp[mac] = ip
+                    }
+                }
+            }
+        }
+        
+        val devices = mutableListOf<DeviceTraffic>()
+        val seenMacs = mutableSetOf<String>()
+        
+        for (line in wifiPart.lines()) {
+            val parts = line.trim().split("""\s+""".toRegex())
+            if (parts.size >= 4) {
+                val mac = parts[0].lowercase().trim().replace("-", ":")
+                val rx = parts[1].toLongOrNull() ?: 0L
+                val tx = parts[2].toLongOrNull() ?: 0L
+                val iface = parts[3]
+                var freqStr = if (parts.size >= 5) parts[4] else "0"
+                val freq = freqStr.toIntOrNull() ?: 0
+                val rxBitrate = if (parts.size >= 7) parts[5] + " " + parts[6] else null
+                val txBitrate = if (parts.size >= 9) parts[7] + " " + parts[8] else null
+                
+                var band = "Wi-Fi ($iface)"
+                if (freq in 2400..2500) band = context.getString(com.example.R.string.wifi_24_ghz)
+                else if (freq in 5000..5900) band = context.getString(com.example.R.string.wifi_5_ghz)
+                else if (freq in 5900..7200) band = context.getString(com.example.R.string.wifi_6_ghz)
+                
+                val ip = macToIp[mac] ?: "Unknown"
+                if (ip != routerIp && ip != "127.0.0.1") {
+                    val hostname = macToHostname[mac] ?: "Unknown"
+                    val monthRx = nlbwRx[mac] ?: 0L
+                    val monthTx = nlbwTx[mac] ?: 0L
+                    devices.add(DeviceTraffic(mac, ip, hostname, band, rx, tx, monthRx, monthTx, rxBitrate, txBitrate))
+                    seenMacs.add(mac)
+                    recentWifiMacs[mac] = WifiCacheEntry(System.currentTimeMillis(), band)
+                }
+            }
+        }
+        
+        var hasWiredFdbEntries = false
+        val fdbMap = mutableMapOf<String, String>()
+        for (line in bridgeFdbPart.lines()) {
+            val parts = line.trim().split("""\s+""".toRegex())
+            if (parts.size >= 3 && parts[1] == "dev") {
+                val mac = parts[0].lowercase().trim().replace("-", ":")
+                val dev = parts[2]
+                
+                val isPermanent = line.contains("permanent")
+                val isSelf = line.contains("self")
+                val isWifiDev = dev.startsWith("phy") || dev.startsWith("wlan") || dev.startsWith("ath") || dev.startsWith("ra") || dev.startsWith("rai") || dev.contains("ap")
+                
+                if (!isPermanent && !isSelf && !isWifiDev) {
+                    hasWiredFdbEntries = true
+                    cachedHasWiredFdbEntries = true
+                }
+                
+                fdbMap[mac] = dev
+            }
+        }
+
+        val dsaData = mutableMapOf<String, LongArray>()
+        for (line in dsaPortsPart.lines()) {
+            val parts = line.trim().split("""\s+""".toRegex())
+            if (parts.size >= 5) {
+                val dev = parts[0]
+                val carrier = parts[1].toLongOrNull() ?: 0L
+                val speed = parts[2].toLongOrNull() ?: 0L
+                val rx = parts[3].toLongOrNull() ?: 0L
+                val tx = parts[4].toLongOrNull() ?: 0L
+                if (carrier > 0L) {
+                    dsaData[dev] = longArrayOf(rx, tx)
+                }
+            }
+        }
+        
+        val activeDsaPorts = dsaData.keys.filter { it.startsWith("lan") || it.startsWith("eth") }
+        
+        val swconfigPorts = mutableMapOf<String, LongArray>()
+        val activeSwconfigPorts = mutableSetOf<String>()
+        var currentPort: String? = null
+        for (line in swconfigPortsPart.lines()) {
+            val trimmed = line.trim()
+            if (trimmed.startsWith("Port ")) {
+                currentPort = trimmed.substringAfter("Port ").removeSuffix(":")
+            } else if (currentPort != null && trimmed.startsWith("mib:")) {
+                val rxMatch = """rx_bytes:\s*(\d+)""".toRegex().find(trimmed)
+                val txMatch = """tx_bytes:\s*(\d+)""".toRegex().find(trimmed)
+                if (rxMatch != null && txMatch != null) {
+                    swconfigPorts[currentPort] = longArrayOf(
+                        rxMatch.groupValues[1].toLong(),
+                        txMatch.groupValues[1].toLong()
+                    )
+                }
+            } else if (currentPort != null && trimmed.contains("link:")) {
+                if (trimmed.contains("link:up") || trimmed.contains("link: up")) {
+                    activeSwconfigPorts.add(currentPort)
+                }
+            }
+        }
+
+        val liveMacs = mutableSetOf<String>()
+        liveMacs.addAll(seenMacs)
+        for ((mac, dev) in fdbMap) {
+            val isWifiDev = dev.startsWith("phy") || dev.startsWith("wlan") || dev.startsWith("ath") || dev.startsWith("ra") || dev.startsWith("rai") || dev.contains("ap")
+            if (!isWifiDev) {
+                if (config.capabilities.switchArchitecture == SwitchArchitecture.DSA) {
+                    if (activeDsaPorts.contains(dev)) {
+                        liveMacs.add(mac)
+                    }
+                } else if (config.capabilities.switchArchitecture == SwitchArchitecture.SWCONFIG) {
+                    if (activeSwconfigPorts.isNotEmpty()) {
+                        liveMacs.add(mac)
+                    }
+                } else {
+                    liveMacs.add(mac)
+                }
+            }
+        }
+        for (line in arpPart.lines()) {
+            val parts = line.trim().split("""\s+""".toRegex())
+            if (parts.size >= 6 && parts[3] != "00:00:00:00:00:00") {
+                val flags = parts[2]
+                val mac = parts[3].lowercase().trim().replace("-", ":")
+                val dev = parts.last()
+                if (flags != "0x0") {
+                    val isWifiDev = dev.startsWith("phy") || dev.startsWith("wlan") || dev.startsWith("ath") || dev.startsWith("ra") || dev.startsWith("rai") || dev.contains("ap")
+                    if (!isWifiDev && !recentWifiMacs.containsKey(mac)) {
+                        if (config.capabilities.switchArchitecture == SwitchArchitecture.DSA) {
+                            val fdbDev = fdbMap[mac]
+                            if (fdbDev != null && !activeDsaPorts.contains(fdbDev)) {
+                                continue
+                            }
+                            if (fdbDev == null && activeDsaPorts.isEmpty()) {
+                                continue
+                            }
+                        } else if (config.capabilities.switchArchitecture == SwitchArchitecture.SWCONFIG) {
+                            if (activeSwconfigPorts.isEmpty()) {
+                                continue
+                            }
+                        }
+                        liveMacs.add(mac)
+                    }
+                }
+            }
+        }
+        for (mac in activeMacs) {
+            if (liveMacs.contains(mac)) {
+                deviceOfflineCount[mac] = 0
+            } else {
+                val count = deviceOfflineCount.getOrDefault(mac, 0) + 1
+                deviceOfflineCount[mac] = count
+            }
+        }
+
+        deviceOfflineCount.keys.retainAll(activeMacs)
+        val wiredFallbackMacs = mutableListOf<String>()
+        val now = System.currentTimeMillis()
+        recentWifiMacs.entries.removeIf { now - it.value.timestamp > 5 * 60 * 1000 } // 5 minutes TTL
+        if (!cachedHasWiredFdbEntries) {
+            for (mac in activeMacs) {
+                if (deviceOfflineCount.getOrDefault(mac, 0) >= 3) continue
+                if (!seenMacs.contains(mac) && !recentWifiMacs.containsKey(mac)) {
+                    val arpDev = macToInterface[mac]
+                    if (arpDev == "br-lan" || arpDev == "lan" || arpDev?.startsWith("eth") == true) {
+                        wiredFallbackMacs.add(mac)
+                    }
+                }
+            }
+        }
+        
+        val activePortsCount = activeDsaPorts.size
+        
+        val fallbackMapping = mutableMapOf<String, String>()
+        val fallbackConfidenceMap = mutableMapOf<String, PortMappingConfidence>()
+        
+        if (!cachedHasWiredFdbEntries && wiredFallbackMacs.isNotEmpty() && config.capabilities.switchArchitecture == SwitchArchitecture.DSA) {
+            if (activePortsCount == 1) {
+                val p = activeDsaPorts.first()
+                val conf = if (wiredFallbackMacs.size == 1) PortMappingConfidence.EXACT else PortMappingConfidence.APPROXIMATE
+                for (m in wiredFallbackMacs) {
+                    fallbackMapping[m] = p
+                    fallbackConfidenceMap[m] = conf
+                }
+            } else if (activePortsCount > 1 && activePortsCount == wiredFallbackMacs.size) {
+                for (i in wiredFallbackMacs.indices) {
+                    fallbackMapping[wiredFallbackMacs[i]] = activeDsaPorts[i]
+                    fallbackConfidenceMap[wiredFallbackMacs[i]] = PortMappingConfidence.APPROXIMATE
+                }
+            } else {
+                for (m in wiredFallbackMacs) {
+                    fallbackConfidenceMap[m] = PortMappingConfidence.UNKNOWN
+                }
+            }
+        }
+
+
+
+        var eth0PhysicalPorts = ""
+        val swMatcher = """"ports":\s*"([^"]+)"""".toRegex()
+        val eth0Match = """"ifname":\s*"eth0([^"]*)"""".toRegex().find(boardJsonPart)
+        if (eth0Match != null) {
+            val eth0Block = boardJsonPart.substring(eth0Match.range.first, boardJsonPart.length.coerceAtMost(eth0Match.range.first + 200))
+            val portsMatch = swMatcher.find(eth0Block)
+            if (portsMatch != null) {
+                eth0PhysicalPorts = portsMatch.groupValues[1].replace("0t", "").trim()
+            }
+        }
+
+
+        for (mac in activeMacs) {
+            val ip = macToIp[mac] ?: continue
+            if (!seenMacs.contains(mac) && ip != routerIp && ip != "127.0.0.1") {
+                val offlineCount = deviceOfflineCount.getOrDefault(mac, 0)
+                if (offlineCount >= 3) {
+                    continue
+                }
+                val hostname = macToHostname[mac] ?: "Unknown"
+                val dev = fdbMap[mac] ?: macToInterface[mac] ?: "LAN"
+                val monthRx = nlbwRx[mac] ?: 0L
+                val monthTx = nlbwTx[mac] ?: 0L
+                
+                val cachedWifi = recentWifiMacs[mac]
+                if (cachedWifi != null) {
+                    devices.add(DeviceTraffic(mac, ip, hostname, cachedWifi.band, 0L, 0L, monthRx, monthTx, null, null))
+                    seenMacs.add(mac)
+                    continue
+                }
+                
+                var connectionType = context.getString(com.example.R.string.ethernet)
+                var devRx = 0L
+                var devTx = 0L
+                
+                if (config.capabilities.switchArchitecture == SwitchArchitecture.DSA) {
+                    if (dsaData.containsKey(dev)) {
+                        connectionType = "LAN (\$dev)"
+                        devRx = dsaData[dev]!![0]
+                        devTx = dsaData[dev]!![1]
+                    } else {
+                        connectionType = context.getString(com.example.R.string.ethernet)
+                    }
+                } else if (config.capabilities.switchArchitecture == SwitchArchitecture.SWCONFIG) {
+                    connectionType = if (dev.startsWith("eth0")) "LAN (\$eth0PhysicalPorts)" else "LAN (\$dev)"
+                    devRx = -1L // Signal unavailable traffic
+                    devTx = -1L
+                }
+
+                val conf = fallbackConfidenceMap[mac] ?: PortMappingConfidence.EXACT
+                devices.add(DeviceTraffic(mac, ip, hostname, connectionType, devRx, devTx, monthRx, monthTx, null, null, conf))
+            }
+        }
+        
+        return devices
     }
 
     private fun parseCpuUsage(cpuLine: String): String {
@@ -663,7 +1210,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
         val totalMb = memTotal / 1024.0
         val percent = (usedClamped.toDouble() / memTotal.toDouble()) * 100.0
 
-        return String.format("%.1f МБ (%.0f%%)", usedMb, percent)
+        return String.format(context.getString(com.example.R.string.format_mb_percent), usedMb, percent)
     }
 
     private fun parseUptime(uptimeLine: String): String {
@@ -675,9 +1222,9 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
         val minutes = (secondsTotal % 3600) / 60
 
         return buildString {
-            if (days > 0) append("${days}д ")
-            if (hours > 0 || days > 0) append("${hours}ч ")
-            append("${minutes}м")
+            if (days > 0) append(String.format(context.getString(com.example.R.string.format_days), days))
+            if (hours > 0 || days > 0) append(String.format(context.getString(com.example.R.string.format_hours), hours))
+            append(String.format(context.getString(com.example.R.string.format_minutes), minutes))
         }
     }
 

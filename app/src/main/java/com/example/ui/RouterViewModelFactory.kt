@@ -13,9 +13,9 @@ class RouterViewModelFactory(private val application: Application) : ViewModelPr
             val database = RouterDatabase.getDatabase(application)
             val dao = database.routerDao()
             val sshClientManager = SshClientManager()
-            val repository = RouterRepository(dao, sshClientManager)
+            val repository = RouterRepository(application, dao, sshClientManager)
             @Suppress("UNCHECKED_CAST")
-            return RouterViewModel(repository) as T
+            return RouterViewModel(repository, application) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

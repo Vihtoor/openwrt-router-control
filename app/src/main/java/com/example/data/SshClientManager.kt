@@ -33,6 +33,7 @@ data class SshResult(
 
 class SshClientManager {
     private val mutex = Mutex()
+    private val commandMutex = Mutex()
     private var activeSession: Session? = null
     private var lastConfig: RouterConfig? = null
 
@@ -97,7 +98,7 @@ class SshClientManager {
     suspend fun getConnectedSession(config: RouterConfig): Session = withContext(Dispatchers.IO) {
         mutex.withLock {
             val currentSession = activeSession
-            if (currentSession != null && currentSession.isConnected && lastConfig == config) {
+            if (currentSession != null && currentSession.isConnected && lastConfig?.id == config.id && lastConfig?.ipAddress == config.ipAddress && lastConfig?.port == config.port && lastConfig?.username == config.username && lastConfig?.sshKeyOrPassword == config.sshKeyOrPassword) {
                 return@withContext currentSession
             }
 
@@ -130,9 +131,10 @@ class SshClientManager {
         timeoutMs: Long = 10000L,
         onPartialOutput: (suspend (String) -> Unit)? = null
     ): SshResult = withContext(Dispatchers.IO) {
-        val session = getConnectedSession(config)
-        var channel: ChannelExec? = null
-        try {
+        commandMutex.withLock {
+            val session = getConnectedSession(config)
+            var channel: ChannelExec? = null
+            try {
             channel = session.openChannel("exec") as ChannelExec
             channel.setPtyType("xterm-256color")
             channel.setPty(true)
@@ -188,16 +190,19 @@ class SshClientManager {
             SshResult(exitStatus, stdout, stderr)
         } catch (e: Exception) {
             Log.e("SshClientManager", "Command execution error: ${e.message}", e)
-            mutex.withLock {
-                closeSessionInternal()
+            if (e is com.jcraft.jsch.JSchException && (e.message?.contains("session is down") == true || e.message?.contains("socket is not established") == true)) {
+                mutex.withLock {
+                    closeSessionInternal()
+                }
             }
             throw e
-        } finally {
-            activeChannel = null
-            activeStdin = null
-            try {
-                channel?.disconnect()
-            } catch (e: Exception) {}
+            } finally {
+                activeChannel = null
+                activeStdin = null
+                try {
+                    channel?.disconnect()
+                } catch (e: Exception) {}
+            }
         }
     }
 

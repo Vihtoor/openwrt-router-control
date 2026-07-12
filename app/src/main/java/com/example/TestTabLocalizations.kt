@@ -1,6 +1,7 @@
 package com.example
 
 object TestTabLocalizations {
+
     
     fun getHelpButtonDesc(lang: String): String {
         return when (lang) {
@@ -162,6 +163,26 @@ object TestTabLocalizations {
         }
     }
 
+    fun getDevicesDesc(lang: String): String {
+        return when (lang) {
+            "ru" -> "Список беспроводных и проводных устройств, подключенных к роутеру"
+            "uk" -> "Список бездротових та дротових пристроїв, підключених до маршрутизатора"
+            "be" -> "Спіс бесправадных і правадных прылад, падлучаных да маршрутызатара"
+            "de" -> "Liste der mit dem Router verbundenen drahtlosen und kabelgebundenen Geräte"
+            "es" -> "Lista de dispositivos inalámbricos y con cable conectados al enrutador"
+            "fr" -> "Liste des appareils sans fil et filaires connectés au routeur"
+            "it" -> "Elenco dei dispositivi wireless e cablati collegati al router"
+            "pt" -> "Lista de dispositivos sem fio e com fio conectados ao roteador"
+            "da" -> "Liste over trådløse og kablede enheder forbundet til routeren"
+            "fi" -> "Luettelo reitittimeen yhdistetyistä langattomista ja langallisista laitteista"
+            "kk" -> "Маршрутизаторға қосылған сымсыз және сымды құрылғылардың тізімі"
+            "lt" -> "Belaidžių ir laidinių įrenginių, prijungtų prie maršrutizatoriaus, sąrašas"
+            "lv" -> "Bezvadu un vārtejās ierīču, kas pievienotas maršrutētājam, saraksts"
+            "sv" -> "Lista över trådlösa och trådbundna enheter anslutna till routern"
+            else -> "List of wireless and wired devices connected to the router"
+        }
+    }
+
     fun getDialogTitle(key: String, lang: String): String {
         val normalizedLang = when (lang) {
             "ru", "uk", "be", "de", "es", "fr", "it", "pt", "da", "fi", "kk", "lt", "lv", "sv" -> lang
@@ -270,6 +291,24 @@ object TestTabLocalizations {
                 "sv" -> "iPerf3 genomströmningstest"
                 else -> "iPerf3 Throughput Test"
             }
+                        "devices" -> when (normalizedLang) {
+                "ru" -> "Устройства, подключенные к роутеру"
+                "uk" -> "Пристрої, підключені до маршрутизатора"
+                "be" -> "Прылады, падлучаныя да маршрутызатара"
+                "de" -> "Mit dem Router verbundene Geräte"
+                "es" -> "Dispositivos conectados al enrutador"
+                "fr" -> "Appareils connectés au routeur"
+                "it" -> "Dispositivi connessi al router"
+                "pt" -> "Dispositivos conectados ao roteador"
+                "da" -> "Enheder tilsluttet routeren"
+                "fi" -> "Reitittimeen yhdistetyt laitteet"
+                "kk" -> "Маршрутизаторға қосылған құрылғылар"
+                "lt" -> "Prie maršrutizatoriaus prijungti įrenginiai"
+                "lv" -> "Maršrutētājam pievienotās ierīces"
+                "sv" -> "Enheter anslutna till routern"
+                else -> "Devices connected to the router"
+            }
+
             "wifi_analyzer" -> when (normalizedLang) {
                 "ru" -> "Wi-Fi Анализатор"
                 "uk" -> "Wi-Fi Аналізатор"
@@ -287,17 +326,217 @@ object TestTabLocalizations {
                 "sv" -> "Wi-Fi-analysator"
                 else -> "Wi-Fi Analyzer"
             }
+            "devices" -> when (normalizedLang) {
+                "ru" -> "**Список устройств:**\nЭтот инструмент отображает список всех устройств, подключенных к вашему роутеру. Вы можете видеть их IP и MAC адреса, тип подключения (Wi-Fi или Ethernet), а также статистику потребляемого трафика и текущую скорость.\n\n**Важное замечание про Ethernet:**\nДля корректного определения устройств, подключенных по кабелю, и отображения достоверной информации об их трафике, на роутере должны быть установлены специальные утилиты:\n• Если роутер имеет архитектуру с мостом (bridge), необходима утилита **bridge**.\n• Если используется архитектура со свитчом (switch), необходима утилита **swconfig**.\nБез этих утилит информация о трафике проводных устройств может отображаться некорректно (например, может выводиться общий трафик всего физического порта роутера, а не отдельного устройства)."
+                else -> "**Device List:**\nThis tool displays a list of all devices connected to your router. You can see their IP and MAC addresses, connection type (Wi-Fi or Ethernet), as well as traffic consumption statistics and current speed.\n\n**Important note about Ethernet:**\nTo correctly detect wired devices and display accurate traffic information, special utilities must be installed on the router:\n• For a bridge architecture, the **bridge** utility is required.\n• For a switch architecture, the **swconfig** utility is required.\nWithout these utilities, traffic information for wired devices may be incorrect (e.g., showing total traffic for the router's physical port rather than the specific device)."
+            }
             else -> ""
         }
     }
 
-    fun getDialogBody(key: String, lang: String): String {
+    fun getDialogBody(key: String, lang: String, config: com.example.data.RouterConfig? = null): String {
         val normalizedLang = when (lang) {
             "ru", "uk", "be", "de", "es", "fr", "it", "pt", "da", "fi", "kk", "lt", "lv", "sv" -> lang
             else -> "en"
         }
 
         return when (key) {
+            "devices" -> {
+                val archStr = when (config?.capabilities?.switchArchitecture) {
+                    com.example.data.SwitchArchitecture.DSA -> when (normalizedLang) {
+                        "ru" -> "архитектура моста (DSA)"
+                        "uk" -> "архітектура мосту (DSA)"
+                        "be" -> "архітэктура моста (DSA)"
+                        "de" -> "Bridge-Architektur (DSA)"
+                        "es" -> "arquitectura de puente (DSA)"
+                        "fr" -> "architecture de pont (DSA)"
+                        "it" -> "architettura bridge (DSA)"
+                        "pt" -> "arquitetura de ponte (DSA)"
+                        "da" -> "bridge-arkitektur (DSA)"
+                        "fi" -> "silta-arkkitehtuuri (DSA)"
+                        "kk" -> "көпір архитектурасы (DSA)"
+                        "lt" -> "tilto architektūra (DSA)"
+                        "lv" -> "tilta arhitektūra (DSA)"
+                        "sv" -> "bryggarkitektur (DSA)"
+                        else -> "bridge architecture (DSA)"
+                    }
+                    com.example.data.SwitchArchitecture.SWCONFIG -> when (normalizedLang) {
+                        "ru" -> "архитектура со свитчом (SWCONFIG)"
+                        "uk" -> "архітектура з комутатором (SWCONFIG)"
+                        "be" -> "архітэктура з камутатарам (SWCONFIG)"
+                        "de" -> "Switch-Architektur (SWCONFIG)"
+                        "es" -> "arquitectura con switch (SWCONFIG)"
+                        "fr" -> "architecture avec switch (SWCONFIG)"
+                        "it" -> "architettura con switch (SWCONFIG)"
+                        "pt" -> "arquitetura com switch (SWCONFIG)"
+                        "da" -> "switch-arkitektur (SWCONFIG)"
+                        "fi" -> "kytkinarkkitehtuuri (SWCONFIG)"
+                        "kk" -> "коммутаторы бар архитектура (SWCONFIG)"
+                        "lt" -> "komutatoriaus architektūra (SWCONFIG)"
+                        "lv" -> "komutatora arhitektūra (SWCONFIG)"
+                        "sv" -> "switch-arkitektur (SWCONFIG)"
+                        else -> "switch architecture (SWCONFIG)"
+                    }
+                    com.example.data.SwitchArchitecture.UNSUPPORTED -> when (normalizedLang) {
+                        "ru" -> "неподдерживаемая архитектура"
+                        "uk" -> "непідтримувана архітектура"
+                        "be" -> "непадтрымоўваная архітэктура"
+                        "de" -> "nicht unterstützte Architektur"
+                        "es" -> "arquitectura no compatible"
+                        "fr" -> "architecture non prise en charge"
+                        "it" -> "architettura non supportata"
+                        "pt" -> "arquitetura não suportada"
+                        "da" -> "ikke-understøttet arkitektur"
+                        "fi" -> "ei-tuettu arkkitehtuuri"
+                        "kk" -> "қолдау көрсетілмейтін архитектура"
+                        "lt" -> "nepalaikoma architektūra"
+                        "lv" -> "neatbalstīta arhitektūra"
+                        "sv" -> "arkitektur som inte stöds"
+                        else -> "unsupported architecture"
+                    }
+                    else -> when (normalizedLang) {
+                        "ru" -> "неизвестная архитектура"
+                        "uk" -> "невідома архітектура"
+                        "be" -> "невядомая архітэктура"
+                        "de" -> "unbekannte Architektur"
+                        "es" -> "arquitectura desconocida"
+                        "fr" -> "architecture inconnue"
+                        "it" -> "architettura sconosciuta"
+                        "pt" -> "arquitetura desconhecida"
+                        "da" -> "ukendt arkitektur"
+                        "fi" -> "tuntematon arkkitehtuuri"
+                        "kk" -> "белгісіз архитектура"
+                        "lt" -> "nežinoma architektūra"
+                        "lv" -> "nezināma arhitektūra"
+                        "sv" -> "okänd arkitektur"
+                        else -> "unknown architecture"
+                    }
+                }
+                
+                val reqUtil = when (config?.capabilities?.switchArchitecture) {
+                    com.example.data.SwitchArchitecture.DSA -> "ip-bridge"
+                    com.example.data.SwitchArchitecture.SWCONFIG -> "swconfig"
+                    else -> when (normalizedLang) {
+                        "ru" -> "ip-bridge или swconfig"
+                        "uk" -> "ip-bridge або swconfig"
+                        "be" -> "ip-bridge або swconfig"
+                        "de" -> "ip-bridge oder swconfig"
+                        "es" -> "ip-bridge o swconfig"
+                        "fr" -> "ip-bridge ou swconfig"
+                        "it" -> "ip-bridge o swconfig"
+                        "pt" -> "ip-bridge ou swconfig"
+                        "da" -> "ip-bridge eller swconfig"
+                        "fi" -> "ip-bridge tai swconfig"
+                        "kk" -> "ip-bridge немесе swconfig"
+                        "lt" -> "ip-bridge arba swconfig"
+                        "lv" -> "ip-bridge vai swconfig"
+                        "sv" -> "ip-bridge eller swconfig"
+                        else -> "ip-bridge or swconfig"
+                    }
+                }
+                
+                val hasUtil = when (config?.capabilities?.switchArchitecture) {
+                    com.example.data.SwitchArchitecture.DSA -> config?.capabilities?.hasBridgeUtil == true
+                    com.example.data.SwitchArchitecture.SWCONFIG -> config?.capabilities?.hasSwconfigUtil == true
+                    else -> false
+                }
+                
+                val utilStatus = if (hasUtil) {
+                    when (normalizedLang) {
+                        "ru" -> "\nУтилита **$reqUtil** установлена в системе, всё работает корректно."
+                        "uk" -> "\nУтиліта **$reqUtil** встановлена в системі, все працює коректно."
+                        "be" -> "\nУтыліта **$reqUtil** усталявана ў сістэме, усё працуе карэктна."
+                        "de" -> "\nDas Dienstprogramm **$reqUtil** ist im System installiert, alles funktioniert ordnungsgemäß."
+                        "es" -> "\nLa utilidad **$reqUtil** está instalada en el sistema, todo funciona correctamente."
+                        "fr" -> "\nL'utilitaire **$reqUtil** est installé dans le système, tout fonctionne correctement."
+                        "it" -> "\nL'utilità **$reqUtil** è installata nel sistema, tutto funziona correttamente."
+                        "pt" -> "\nO utilitário **$reqUtil** está instalado no sistema, tudo funciona corretamente."
+                        "da" -> "\nHjælpeprogrammet **$reqUtil** er installeret i systemet, alt fungerer korrekt."
+                        "fi" -> "\nTyökalu **$reqUtil** on asennettu järjestelmään, kaikki toimii oikein."
+                        "kk" -> "\n**$reqUtil** утилитасы жүйеде орнатылған, барлығы дұрыс жұмыс істейді."
+                        "lt" -> "\n**$reqUtil** įrankis įdiegtas sistemoje, viskas veikia tinkamai."
+                        "lv" -> "\n**$reqUtil** utilītprogramma ir instalēta sistēmā, viss darbojas pareizi."
+                        "sv" -> "\nVerktyget **$reqUtil** är installerat i systemet, allt fungerar korrekt."
+                        else -> "\nThe **$reqUtil** utility is installed in the system, everything works correctly."
+                    }
+                } else {
+                    when (normalizedLang) {
+                        "ru" -> "\nУтилита **$reqUtil** не найдена в системе! Информация о трафике проводных устройств может отображаться некорректно."
+                        "uk" -> "\nУтиліта **$reqUtil** не знайдена в системі! Інформація про трафік дротових пристроїв може відображатися некоректно."
+                        "be" -> "\nУтыліта **$reqUtil** не знойдзена ў сістэме! Інфармацыя пра трафік правадных прылад можа адлюстроўвацца некарэктна."
+                        "de" -> "\nDas Dienstprogramm **$reqUtil** wurde nicht im System gefunden! Verkehrsinformationen für kabelgebundene Geräte werden möglicherweise falsch angezeigt."
+                        "es" -> "\n¡La utilidad **$reqUtil** no se encuentra en el sistema! La información de tráfico para dispositivos con cable puede mostrarse incorrectamente."
+                        "fr" -> "\nL'utilitaire **$reqUtil** est introuvable dans le système ! Les informations de trafic pour les appareils filaires peuvent s'afficher de manière incorrecte."
+                        "it" -> "\nL'utilità **$reqUtil** non è stata trovata nel sistema! Le informazioni sul traffico per i dispositivi cablati potrebbero essere visualizzate in modo errato."
+                        "pt" -> "\nO utilitário **$reqUtil** não foi encontrado no sistema! As informações de tráfego para dispositivos com fio podem ser exibidas incorretamente."
+                        "da" -> "\nHjælpeprogrammet **$reqUtil** findes ikke i systemet! Trafikoplysninger for kablede enheder kan vises forkert."
+                        "fi" -> "\nTyökalua **$reqUtil** ei löydy järjestelmästä! Langallisten laitteiden liikennetiedot saattavat näkyä väärin."
+                        "kk" -> "\n**$reqUtil** утилитасы жүйеде табылмады! Сымды құрылғылардың трафик туралы ақпараты қате көрсетілуі мүмкін."
+                        "lt" -> "\nSistemoje nerastas **$reqUtil** įrankis! Informacija apie laidinių įrenginių srautą gali būti rodoma neteisingai."
+                        "lv" -> "\nSistēmā nav atrasta utilītprogramma **$reqUtil**! Informācija par vārtejās ierīču datplūsmu var tikt parādīta nepareizi."
+                        "sv" -> "\nVerktyget **$reqUtil** hittades inte i systemet! Trafikinformation för trådbundna enheter kan visas felaktigt."
+                        else -> "\nThe **$reqUtil** utility is not found in the system! Traffic information for wired devices may be incorrect."
+                    }
+                }
+                
+                val installInstruction = when (normalizedLang) {
+                    "ru" -> "\n\nДля установки необходимой утилиты скопируйте эту команду и вставьте её в консоль:\n\nopkg update && opkg install $reqUtil"
+                    "uk" -> "\n\nЩоб встановити необхідну утиліту, скопіюйте цю команду та вставте її в консоль:\n\nopkg update && opkg install $reqUtil"
+                    "be" -> "\n\nКаб усталяваць неабходную ўтыліту, скапіруйце гэту каманду і ўстаўце яе ў кансоль:\n\nopkg update && opkg install $reqUtil"
+                    "de" -> "\n\nUm das erforderliche Dienstprogramm zu installieren, kopieren Sie diesen Befehl und fügen Sie ihn in die Konsole ein:\n\nopkg update && opkg install $reqUtil"
+                    "es" -> "\n\nPara instalar la utilidad necesaria, copie este comando y péguelo en la consola:\n\nopkg update && opkg install $reqUtil"
+                    "fr" -> "\n\nPour installer l'utilitaire nécessaire, copiez cette commande et collez-la dans la console :\n\nopkg update && opkg install $reqUtil"
+                    "it" -> "\n\nPer installare l'utilità necessaria, copia questo comando e incollalo nella console:\n\nopkg update && opkg install $reqUtil"
+                    "pt" -> "\n\nPara instalar o utilitário necessário, copie este comando e cole-o no console:\n\nopkg update && opkg install $reqUtil"
+                    "da" -> "\n\nFor at installere det nødvendige hjælpeprogram, kopier denne kommando og indsæt den i konsollen:\n\nopkg update && opkg install $reqUtil"
+                    "fi" -> "\n\nAsenna tarvittava työkalu kopioimalla tämä komento ja liittämällä se konsoliin:\n\nopkg update && opkg install $reqUtil"
+                    "kk" -> "\n\nҚажетті утилитаны орнату үшін осы пәрменді көшіріп, консольге қойыңыз:\n\nopkg update && opkg install $reqUtil"
+                    "lt" -> "\n\nNorėdami įdiegti reikiamą įrankį, nukopijuokite šią komandą ir įklijuokite ją į konsolę:\n\nopkg update && opkg install $reqUtil"
+                    "lv" -> "\n\nLai instalētu nepieciešamo utilītprogrammu, kopējiet šo komandu un ielīmējiet to konsolē:\n\nopkg update && opkg install $reqUtil"
+                    "sv" -> "\n\nFör att installera det nödvändiga verktyget, kopiera detta kommando och klistra in det i konsolen:\n\nopkg update && opkg install $reqUtil"
+                    else -> "\n\nTo install the necessary utility, copy this command and paste it into the console:\n\nopkg update && opkg install $reqUtil"
+                }
+                
+                val installText = if (!hasUtil && config?.capabilities?.switchArchitecture != com.example.data.SwitchArchitecture.UNSUPPORTED && config?.capabilities?.switchArchitecture != null) {
+                    installInstruction
+                } else ""
+                
+                val ethernetNote = when (normalizedLang) {
+                    "ru" -> "**Важное замечание про Ethernet:**\nВаш роутер имеет: $archStr. Для возможности определения устройств, подключенных к роутеру через Ethernet, и вывода достоверной информации об их трафике необходима утилита **$reqUtil**.$utilStatus$installText"
+                    "uk" -> "**Важливе зауваження щодо Ethernet:**\nВаш маршрутизатор має: $archStr. Для можливості визначення пристроїв, підключених до маршрутизатора через Ethernet, та виведення достовірної інформації про їх трафік необхідна утиліта **$reqUtil**.$utilStatus$installText"
+                    "be" -> "**Важная заўвага пра Ethernet:**\nВаш маршрутызатар мае: $archStr. Для магчымасці вызначэння прылад, падлучаных да маршрутызатара праз Ethernet, і вываду дакладнай інфармацыі пра іх трафік неабходна ўтыліта **$reqUtil**.$utilStatus$installText"
+                    "de" -> "**Wichtiger Hinweis zu Ethernet:**\nIhr Router verfügt über: $archStr. Um Geräte zu erkennen, die über Ethernet mit dem Router verbunden sind, und genaue Verkehrsinformationen anzuzeigen, ist das Dienstprogramm **$reqUtil** erforderlich.$utilStatus$installText"
+                    "es" -> "**Nota importante sobre Ethernet:**\nSu enrutador tiene: $archStr. Para detectar dispositivos conectados al enrutador a través de Ethernet y mostrar información precisa sobre el tráfico, se requiere la utilidad **$reqUtil**.$utilStatus$installText"
+                    "fr" -> "**Remarque importante concernant Ethernet :**\nVotre routeur possède : $archStr. Pour détecter les appareils connectés au routeur via Ethernet et afficher des informations de trafic précises, l'utilitaire **$reqUtil** est nécessaire.$utilStatus$installText"
+                    "it" -> "**Nota importante su Ethernet:**\nIl tuo router ha: $archStr. Per rilevare i dispositivi collegati al router tramite Ethernet e visualizzare informazioni accurate sul traffico, è necessaria l'utilità **$reqUtil**.$utilStatus$installText"
+                    "pt" -> "**Nota importante sobre Ethernet:**\nSeu roteador tem: $archStr. Para detectar dispositivos conectados ao roteador via Ethernet e exibir informações de tráfego precisas, o utilitário **$reqUtil** é necessário.$utilStatus$installText"
+                    "da" -> "**Vigtig bemærkning om Ethernet:**\nDin router har: $archStr. For at opdage enheder forbundet til routeren via Ethernet og vise nøjagtige trafikoplysninger, kræves hjælpeprogrammet **$reqUtil**.$utilStatus$installText"
+                    "fi" -> "**Tärkeä huomautus Ethernetistä:**\nReitittimessäsi on: $archStr. Jotta Ethernetin kautta reitittimeen yhdistetyt laitteet voidaan havaita ja tarkat liikennetiedot näyttää, tarvitaan työkalu **$reqUtil**.$utilStatus$installText"
+                    "kk" -> "**Ethernet туралы маңызды ескертпе:**\nСіздің маршрутизаторыңызда: $archStr бар. Маршрутизаторға Ethernet арқылы қосылған құрылғыларды анықтау және олардың трафигі туралы нақты ақпаратты көрсету үшін **$reqUtil** утилитасы қажет.$utilStatus$installText"
+                    "lt" -> "**Svarbi pastaba apie Ethernet:**\nJūsų maršrutizatorius turi: $archStr. Norint nustatyti įrenginius, prijungtus prie maršrutizatoriaus per Ethernet, ir rodyti tikslią informaciją apie jų srautą, reikalingas **$reqUtil** įrankis.$utilStatus$installText"
+                    "lv" -> "**Svarīga piezīme par Ethernet:**\nJūsu maršrutētājam ir: $archStr. Lai noteiktu ierīces, kas pievienotas maršrutētājam, izmantojot Ethernet, un parādītu precīzu trafika informāciju, ir nepieciešama utilītprogramma **$reqUtil**.$utilStatus$installText"
+                    "sv" -> "**Viktig information om Ethernet:**\nDin router har: $archStr. För att upptäcka enheter anslutna till routern via Ethernet och visa korrekt trafikinformation krävs verktyget **$reqUtil**.$utilStatus$installText"
+                    else -> "**Important note about Ethernet:**\nYour router has: $archStr. To detect devices connected to the router via Ethernet and display accurate traffic information, the **$reqUtil** utility is required.$utilStatus$installText"
+                }
+                
+                when (normalizedLang) {
+                    "ru" -> "**Список устройств:**\nЭтот инструмент отображает список всех устройств, подключенных к вашему роутеру. Вы можете видеть их IP и MAC адреса, тип подключения (Wi-Fi или Ethernet), а также статистику потребляемого трафика и текущую скорость.\n\n$ethernetNote\n\nСписок устройств также можно отобразить нажав на \"Загрузка\" и \"Выгрузка\" на графике трафика и загрузки процессора на главном экране приложения."
+                    "uk" -> "**Список пристроїв:**\nЦей інструмент відображає список усіх пристроїв, підключених до вашого маршрутизатора. Ви можете бачити їх IP- та MAC-адреси, тип підключення (Wi-Fi або Ethernet), а також статистику спожитого трафіку та поточну швидкість.\n\n$ethernetNote\n\nСписок пристроїв також можна відобразити натиснувши на \"Завантаження\" та \"Віддача\" на графіку трафіку та завантаження процесора на головному екрані програми."
+                    "be" -> "**Спіс прылад:**\nГэты інструмент адлюстроўвае спіс усіх прылад, падлучаных да вашага маршрутызатара. Вы можаце бачыць іх IP і MAC адрасы, тып падключэння (Wi-Fi або Ethernet), а таксама статыстыку спажыванага трафіку і бягучую хуткасць.\n\n$ethernetNote\n\nСпіс прылад таксама можна адлюстраваць націснуўшы на \"Загрузка\" і \"Выгрузка\" на графіку трафіку і загрузкі працэсара на галоўным экране праграмы."
+                    "de" -> "**Geräteliste:**\nDieses Tool zeigt eine Liste aller mit Ihrem Router verbundenen Geräte an. Sie können deren IP- und MAC-Adressen, Verbindungstyp (Wi-Fi oder Ethernet) sowie Verkehrsnutzungsstatistiken und die aktuelle Geschwindigkeit sehen.\n\n$ethernetNote\n\nDie Geräteliste kann auch durch Klicken auf \"Download\" und \"Upload\" im Diagramm für Datenverkehr und CPU-Auslastung auf dem Hauptbildschirm der App angezeigt werden."
+                    "es" -> "**Lista de dispositivos:**\nEsta herramienta muestra una lista de todos los dispositivos conectados a su enrutador. Puede ver sus direcciones IP y MAC, el tipo de conexión (Wi-Fi o Ethernet), así como las estadísticas de consumo de tráfico y la velocidad actual.\n\n$ethernetNote\n\nLa lista de dispositivos también se puede mostrar haciendo clic en \"Descarga\" y \"Carga\" en el gráfico de tráfico y uso de CPU en la pantalla principal de la aplicación."
+                    "fr" -> "**Liste des appareils :**\nCet outil affiche une liste de tous les appareils connectés à votre routeur. Vous pouvez voir leurs adresses IP et MAC, le type de connexion (Wi-Fi ou Ethernet), ainsi que les statistiques de consommation de trafic et la vitesse actuelle.\n\n$ethernetNote\n\nLa liste des appareils peut également être affichée en cliquant sur \"Téléchargement\" et \"Envoi\" sur le graphique du trafic et de l'utilisation du processeur sur l'écran principal de l'application."
+                    "it" -> "**Elenco dispositivi:**\nQuesto strumento visualizza un elenco di tutti i dispositivi connessi al tuo router. Puoi vedere i loro indirizzi IP e MAC, il tipo di connessione (Wi-Fi o Ethernet), nonché le statistiche di consumo del traffico e la velocità attuale.\n\n$ethernetNote\n\nL'elenco dei dispositivi può essere visualizzato anche facendo clic su \"Download\" e \"Upload\" nel grafico del traffico e dell'utilizzo della CPU nella schermata principale dell'app."
+                    "pt" -> "**Lista de dispositivos:**\nEsta ferramenta exibe uma lista de todos os dispositivos conectados ao seu roteador. Você pode ver seus endereços IP e MAC, o tipo de conexão (Wi-Fi ou Ethernet), bem como estatísticas de consumo de tráfego e velocidade atual.\n\n$ethernetNote\n\nA lista de dispositivos também pode ser exibida clicando em \"Download\" e \"Upload\" no gráfico de tráfego e uso da CPU na tela principal do aplicativo."
+                    "da" -> "**Enhedsliste:**\nDette værktøj viser en liste over alle enheder, der er tilsluttet din router. Du kan se deres IP- og MAC-adresser, forbindelsestype (Wi-Fi eller Ethernet), samt trafikforbrugsstatistikker og den aktuelle hastighed.\n\n$ethernetNote\n\nEnhedslisten kan også vises ved at klikke på \"Download\" og \"Upload\" på grafen for trafik og CPU-forbrug på appens hovedskærm."
+                    "fi" -> "**Laiteluettelo:**\nTämä työkalu näyttää luettelon kaikista reitittimeen yhdistetyistä laitteista. Näet niiden IP- ja MAC-osoitteet, yhteystyypin (Wi-Fi tai Ethernet) sekä liikenteen kulutustilastot ja nykyisen nopeuden.\n\n$ethernetNote\n\nLaiteluettelo voidaan näyttää myös napsauttamalla \"Lataus\" ja \"Lähetys\" liikenteen ja suorittimen käyttöasteen kaaviossa sovelluksen päänäytössä."
+                    "kk" -> "**Құрылғылар тізімі:**\nБұл құрал сіздің маршрутизаторыңызға қосылған барлық құрылғылардың тізімін көрсетеді. Сіз олардың IP және MAC мекенжайларын, қосылым түрін (Wi-Fi немесе Ethernet), сондай-ақ тұтынылған трафик статистикасын және ағымдағы жылдамдықты көре аласыз.\n\n$ethernetNote\n\nҚұрылғылар тізімін қолданбаның негізгі экранындағы трафик және процессор жүктемесі графигіндегі \"Жүктеп алу\" және \"Жүктеп салу\" түймелерін басу арқылы да көрсетуге болады."
+                    "lt" -> "**Įrenginių sąrašas:**\nŠis įrankis rodo visų prie maršrutizatoriaus prijungtų įrenginių sąrašą. Galite matyti jų IP ir MAC adresus, ryšio tipą („Wi-Fi“ ar Ethernet), taip pat srauto vartojimo statistiką ir dabartinį greitį.\n\n$ethernetNote\n\nĮrenginių sąrašą taip pat galima pamatyti pagrindiniame programos ekrane esančiame srauto ir procesoriaus apkrovos grafike paspaudus „Atsisiuntimas“ ir „Išsiuntimas“."
+                    "lv" -> "**Ierīču saraksts:**\nŠis rīks parāda visu jūsu maršrutētājam pievienoto ierīču sarakstu. Jūs varat redzēt to IP un MAC adreses, savienojuma veidu (Wi-Fi vai Ethernet), kā arī trafika patēriņa statistiku un pašreizējo ātrumu.\n\n$ethernetNote\n\nIerīču sarakstu var parādīt arī, noklikšķinot uz \"Lejupielāde\" un \"Augšupielāde\" trafika un CPU lietojuma diagrammā lietotnes galvenajā ekrānā."
+                    "sv" -> "**Enhetslista:**\nDetta verktyg visar en lista över alla enheter anslutna till din router. Du kan se deras IP- och MAC-adresser, anslutningstyp (Wi-Fi eller Ethernet), samt statistik över trafikförbrukning och aktuell hastighet.\n\n$ethernetNote\n\nEnhetslistan kan också visas genom att klicka på \"Nedladdning\" och \"Uppladdning\" i diagrammet för trafik och CPU-användning på appens huvudskärm."
+                    else -> "**Device List:**\nThis tool displays a list of all devices connected to your router. You can see their IP and MAC addresses, connection type (Wi-Fi or Ethernet), as well as traffic consumption statistics and current speed.\n\n$ethernetNote\n\nThe device list can also be displayed by clicking on \"Download\" and \"Upload\" on the traffic and CPU usage graph on the main screen of the app."
+                }
+            }
             "mlab" -> when (normalizedLang) {
                 "ru" -> "**Суть:** Академический эталон чистого состояния сети.\n\n• **Принцип:** Открывает одно TCP-соединение через WebSockets на 10 секунд для замера чистой скорости приложений (Goodput).\n• **Алгоритм:** Использует алгоритм Google BBR для оценки реальной емкости канала без переполнения буфера."
                 "uk" -> "**Суть:** Академічний еталон чистого стану мережі.\n\n• **Принцип:** Відкриває одне TCP-з’єднання через WebSockets на 10 секунд для вимірювання чистої швидкості додатків (Goodput).\n• **Алгоритм:** Використовує алгоритм Google BBR для оцінки реальної ємності каналу без переповнення буфера."
@@ -420,6 +659,150 @@ object TestTabLocalizations {
                 else -> "**Concept:**\nReal-time monitoring of Wi-Fi radio environment and wireless network spectrum allocation.\n\n• **Signal Strength (dBm):** Higher peaks indicate stronger signals (-30 dBm for excellent to -90 dBm for very poor reception).\n• **Channel Width:** The base width of the parabola corresponds to the network channel bandwidth (20, 40, 80, or 160 MHz).\n• **Active Connection:** The network currently connected is highlighted in **red** on the chart, and its SSID is enclosed in a red rectangular card for instant recognition."
             }
             else -> ""
+        }
+    }
+
+    fun getBannerNoBridge(lang: String): String {
+        val normalizedLang = when (lang) {
+            "ru", "uk", "be", "de", "es", "fr", "it", "pt", "da", "fi", "kk", "lt", "lv", "sv" -> lang
+            else -> "en"
+        }
+        return when (normalizedLang) {
+            "ru" -> "Не найдена утилита bridge — определение устройств на LAN-портах недоступно."
+            "uk" -> "Не знайдена утиліта bridge — визначення пристроїв на LAN-портах недоступне."
+            "be" -> "Не знойдзена ўтыліта bridge — вызначэнне прылад на LAN-партах недаступна."
+            "de" -> "Das Dienstprogramm bridge wurde nicht gefunden — die Erkennung von Geräten an LAN-Ports ist nicht verfügbar."
+            "es" -> "No se encontró la utilidad bridge: la detección de dispositivos en los puertos LAN no está disponible."
+            "fr" -> "Utilitaire bridge introuvable — la détection des périphériques sur les ports LAN n'est pas disponible."
+            "it" -> "Utilità bridge non trovata — il rilevamento dei dispositivi sulle porte LAN non è disponibile."
+            "pt" -> "Utilitário bridge não encontrado — a detecção de dispositivos nas portas LAN não está disponível."
+            "da" -> "Værktøjet bridge blev ikke fundet — registrering af enheder på LAN-porte er ikke tilgængelig."
+            "fi" -> "Bridge-työkalua ei löydy — laitteiden tunnistus LAN-porteissa ei ole käytettävissä."
+            "kk" -> "bridge утилитасы табылмады — LAN порттарында құрылғыларды анықтау қолжетімсіз."
+            "lt" -> "Nerastas bridge įrankis — įrenginių aptikimas LAN prievaduose neprieinamas."
+            "lv" -> "Nav atrasta bridge utilītprogramma — ierīču noteikšana LAN portos nav pieejama."
+            "sv" -> "Verktyget bridge hittades inte — enhetsdetektering på LAN-portar är inte tillgänglig."
+            else -> "bridge utility not found — device detection on LAN ports is unavailable."
+        }
+    }
+
+    fun getBannerNoSwconfig(lang: String): String {
+        val normalizedLang = when (lang) {
+            "ru", "uk", "be", "de", "es", "fr", "it", "pt", "da", "fi", "kk", "lt", "lv", "sv" -> lang
+            else -> "en"
+        }
+        return when (normalizedLang) {
+            "ru" -> "Не найдена утилита swconfig — недоступен линк-статус и трафик LAN-портов (если роутер поддерживает swconfig)."
+            "uk" -> "Не знайдена утиліта swconfig — недоступний лінк-статус і трафік LAN-портів (якщо маршрутизатор підтримує swconfig)."
+            "be" -> "Не знойдзена ўтыліта swconfig — недаступны лінк-статус і трафік LAN-партоў (калі маршрутызатар падтрымлівае swconfig)."
+            "de" -> "Das Dienstprogramm swconfig wurde nicht gefunden — Verbindungsstatus und Datenverkehr von LAN-Ports sind nicht verfügbar (sofern der Router swconfig unterstützt)."
+            "es" -> "No se encontró la utilidad swconfig: el estado del enlace y el tráfico de los puertos LAN no están disponibles (si el enrutador admite swconfig)."
+            "fr" -> "Utilitaire swconfig introuvable — l'état de la liaison et le trafic des ports LAN ne sont pas disponibles (si le routeur prend en charge swconfig)."
+            "it" -> "Utilità swconfig non trovata — lo stato del collegamento e il traffico delle porte LAN non sono disponibili (se il router supporta swconfig)."
+            "pt" -> "Utilitário swconfig não encontrado — o status do link e o tráfego das portas LAN não estão disponíveis (se o roteador suportar swconfig)."
+            "da" -> "Værktøjet swconfig blev ikke fundet — linkstatus og trafik på LAN-porte er ikke tilgængelige (hvis routeren understøtter swconfig)."
+            "fi" -> "Swconfig-työkalua ei löydy — linkin tila ja LAN-porttien liikenne eivät ole käytettävissä (jos reititin tukee swconfig-työkalua)."
+            "kk" -> "swconfig утилитасы табылмады — LAN порттарының байланыс күйі мен трафигі қолжетімсіз (егер маршрутизатор swconfig-ті қолдаса)."
+            "lt" -> "Nerastas swconfig įrankis — LAN prievadų ryšio būsena ir srautas neprieinami (jei maršrutizatorius palaiko swconfig)."
+            "lv" -> "Nav atrasta swconfig utilītprogramma — LAN portu saites statuss un trafiks nav pieejams (ja maršrutētājs atbalsta swconfig)."
+            "sv" -> "Verktyget swconfig hittades inte — länkstatus och trafik för LAN-portar är inte tillgängliga (om routern stöder swconfig)."
+            else -> "swconfig utility not found — link status and traffic of LAN ports are unavailable (if the router supports swconfig)."
+        }
+    }
+
+    fun getBannerNoBoardJson(lang: String): String {
+        val normalizedLang = when (lang) {
+            "ru", "uk", "be", "de", "es", "fr", "it", "pt", "da", "fi", "kk", "lt", "lv", "sv" -> lang
+            else -> "en"
+        }
+        return when (normalizedLang) {
+            "ru" -> "Невозможно сопоставить логические порты с физическими номерами LAN-портов."
+            "uk" -> "Неможливо зіставити логічні порти з фізичними номерами LAN-портів."
+            "be" -> "Немагчыма супаставіць лагічныя парты з фізічнымі нумарамі LAN-партоў."
+            "de" -> "Logische Ports können nicht mit physischen LAN-Port-Nummern abgeglichen werden."
+            "es" -> "No es posible mapear puertos lógicos con números de puertos LAN físicos."
+            "fr" -> "Impossible de faire correspondre les ports logiques aux numéros de ports LAN physiques."
+            "it" -> "Impossibile mappare le porte logiche ai numeri delle porte LAN fisiche."
+            "pt" -> "Não é possível mapear portas lógicas para números de portas LAN físicas."
+            "da" -> "Kan ikke matche logiske porte med fysiske LAN-portnumre."
+            "fi" -> "Loogisia portteja ei voi yhdistää fyysisiin LAN-porttien numeroihin."
+            "kk" -> "Логикалық порттарды физикалық LAN порт нөмірлерімен сәйкестендіру мүмкін емес."
+            "lt" -> "Neįmanoma susieti loginių prievadų su fiziniais LAN prievadų numeriais."
+            "lv" -> "Nevar saskaņot loģiskos portus ar fizisko LAN portu numuriem."
+            "sv" -> "Kan inte matcha logiska portar med fysiska LAN-portnummer."
+            else -> "Cannot map logical ports to physical LAN port numbers."
+        }
+    }
+
+    fun getBannerUnsupported(lang: String, arch: String): String {
+        val normalizedLang = when (lang) {
+            "ru", "uk", "be", "de", "es", "fr", "it", "pt", "da", "fi", "kk", "lt", "lv", "sv" -> lang
+            else -> "en"
+        }
+        return when (normalizedLang) {
+            "ru" -> "Роутер/прошивка не поддерживает разделение LAN-портов (архитектура: $arch)."
+            "uk" -> "Маршрутизатор/прошивка не підтримує поділ LAN-портів (архітектура: $arch)."
+            "be" -> "Маршрутызатар/прашыўка не падтрымлівае падзел LAN-партоў (архітэктура: $arch)."
+            "de" -> "Router/Firmware unterstützt keine Trennung von LAN-Ports (Architektur: $arch)."
+            "es" -> "El enrutador/firmware no admite la separación de puertos LAN (arquitectura: $arch)."
+            "fr" -> "Le routeur/micrologiciel ne prend pas en charge la séparation des ports LAN (architecture : $arch)."
+            "it" -> "Il router/firmware non supporta la separazione delle porte LAN (architettura: $arch)."
+            "pt" -> "O roteador/firmware não suporta a separação de portas LAN (arquitetura: $arch)."
+            "da" -> "Router/firmware understøtter ikke adskillelse af LAN-porte (arkitektur: $arch)."
+            "fi" -> "Reititin/laiteohjelmisto ei tue LAN-porttien erottelua (arkkitehtuuri: $arch)."
+            "kk" -> "Маршрутизатор/бағдарламалық жасақтама LAN порттарын бөлуді қолдамайды (архитектура: $arch)."
+            "lt" -> "Maršrutizatorius / programinė įranga nepalaiko LAN prievadų atskyrimo (architektūra: $arch)."
+            "lv" -> "Maršrutētājs / aparātprogrammatūra neatbalsta LAN portu atdalīšanu (arhitektūra: $arch)."
+            "sv" -> "Routern/firmware stöder inte separering av LAN-portar (arkitektur: $arch)."
+            else -> "Router/firmware does not support LAN port separation (architecture: $arch)."
+        }
+    }
+
+    fun getBannerInstallInstruction(lang: String): String {
+        val normalizedLang = when (lang) {
+            "ru", "uk", "be", "de", "es", "fr", "it", "pt", "da", "fi", "kk", "lt", "lv", "sv" -> lang
+            else -> "en"
+        }
+        return when (normalizedLang) {
+            "ru" -> "Вы можете установить утилиту для сбора статистики скопировав следующую команду и вставив ее в Консоль:"
+            "uk" -> "Ви можете встановити утиліту для збору статистики, скопіювавши наступну команду і вставивши її в Консоль:"
+            "be" -> "Вы можаце ўсталяваць утыліту для збору статыстыкі, скапіяваўшы наступную каманду і ўставіўшы яе ў Кансоль:"
+            "de" -> "Sie können das Dienstprogramm zum Sammeln von Statistiken installieren, indem Sie den folgenden Befehl kopieren und in die Konsole einfügen:"
+            "es" -> "Puede instalar la utilidad de recopilación de estadísticas copiando el siguiente comando y pegándolo en la Consola:"
+            "fr" -> "Vous pouvez installer l'utilitaire de collecte de statistiques en copiant la commande suivante et en la collant dans la console :"
+            "it" -> "È possibile installare l'utilità di raccolta statistiche copiando il seguente comando e incollandolo nella Console:"
+            "pt" -> "Você pode instalar o utilitário de coleta de estatísticas copiando o seguinte comando e colando-o no Console:"
+            "da" -> "Du kan installere hjælpeprogrammet til indsamling af statistik ved at kopiere følgende kommando og indsætte den i konsollen:"
+            "fi" -> "Voit asentaa tilastojen keräystyökalun kopioimalla seuraavan komennon ja liittämällä sen konsoliin:"
+            "kk" -> "Келесі пәрменді көшіріп, Консольге қою арқылы статистиканы жинау утилитасын орнатуға болады:"
+            "lt" -> "Galite įdiegti statistikos rinkimo įrankį nukopijavę šią komandą ir įklijavę ją į konsolę:"
+            "lv" -> "Jūs varat instalēt statistikas vākšanas utilītprogrammu, kopējot šo komandu un ielīmējot to konsolē:"
+            "sv" -> "Du kan installera verktyget för att samla in statistik genom att kopiera följande kommando och klistra in det i konsolen:"
+            else -> "You can install the utility for collecting statistics by copying the following command and pasting it into the Console:"
+        }
+    }
+
+    fun getBannerGotIt(lang: String): String {
+        val normalizedLang = when (lang) {
+            "ru", "uk", "be", "de", "es", "fr", "it", "pt", "da", "fi", "kk", "lt", "lv", "sv" -> lang
+            else -> "en"
+        }
+        return when (normalizedLang) {
+            "ru" -> "Понятно"
+            "uk" -> "Зрозуміло"
+            "be" -> "Зразумела"
+            "de" -> "Verstanden"
+            "es" -> "Entendido"
+            "fr" -> "Compris"
+            "it" -> "Capito"
+            "pt" -> "Entendido"
+            "da" -> "Forstået"
+            "fi" -> "Selvä"
+            "kk" -> "Түсінікті"
+            "lt" -> "Supratau"
+            "lv" -> "Skaidrs"
+            "sv" -> "Förstått"
+            else -> "Got it"
         }
     }
 }

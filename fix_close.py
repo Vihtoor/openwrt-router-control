@@ -1,28 +1,52 @@
 import re
 
-with open("app/src/main/java/com/example/ui/SettingsPanel.kt", "r", encoding="utf-8") as f:
+with open("app/src/main/java/com/example/MainActivity.kt", "r") as f:
     content = f.read()
 
-old_close = """                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = translateText("Закрыть", context))
-                }"""
+old_bottom_panel = """                    // Bottom Panel
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(headerBg)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        var isFocused by remember { mutableStateOf(false) }
+                        androidx.compose.material3.TextButton(
+                            onClick = onDismiss,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .onFocusChanged { isFocused = it.isFocused }
+                                .focusable()
+                                .background(if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(50))
+                        ) {
+                            Text("Закрыть")
+                        }
+                    }"""
 
-new_close = """                var isCloseFocused by remember { mutableStateOf(false) }
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .focusable()
-                        .onFocusChanged { isCloseFocused = it.isFocused }
-                        .background(if (isCloseFocused) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Default.Close, 
-                        contentDescription = translateText("Закрыть", context),
-                        tint = if (isCloseFocused) MaterialTheme.colorScheme.onPrimaryContainer else LocalContentColor.current
-                    )
-                }"""
+new_bottom_panel = """                    // Bottom Panel
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(headerBg)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        var isFocused by remember { mutableStateOf(false) }
+                        androidx.compose.material3.TextButton(
+                            onClick = onDismiss,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+                                .onFocusChanged { isFocused = it.isFocused }
+                                .focusable()
+                                .background(if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(50))
+                        ) {
+                            Text("Закрыть")
+                        }
+                    }"""
 
-content = content.replace(old_close, new_close)
+content = content.replace(old_bottom_panel, new_bottom_panel)
 
-with open("app/src/main/java/com/example/ui/SettingsPanel.kt", "w", encoding="utf-8") as f:
+with open("app/src/main/java/com/example/MainActivity.kt", "w") as f:
     f.write(content)

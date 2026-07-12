@@ -82,7 +82,7 @@ class RouterLedTileService : TileService() {
                     tile.updateTile()
                 }
 
-                val repository = RouterRepository(dao, sharedSsh)
+                val repository = RouterRepository(this@RouterLedTileService, dao, sharedSsh)
                 val status = repository.queryRouterStatus(config)
 
                 if (!force && toggleJob?.isActive == true) return@launch
@@ -143,7 +143,7 @@ class RouterLedTileService : TileService() {
 
                 ShortcutHelper.pushShortcutById(applicationContext, if (nextState) "led_on" else "led_off")
 
-                val repository = RouterRepository(dao, sharedSsh)
+                val repository = RouterRepository(this@RouterLedTileService, dao, sharedSsh)
                 repository.setLedStatus(config, nextState)
                 
                 toggleSuccess = true
