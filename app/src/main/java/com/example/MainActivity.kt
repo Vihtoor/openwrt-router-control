@@ -3628,7 +3628,9 @@ fun ConsoleTab(
                         }
                     }
                     view.onDeleteSurroundingText = { before, _ ->
-                        repeat(before) {
+                        val textToDelete = currentTypedLine.takeLast(before)
+                        val bytesToDelete = textToDelete.toByteArray(Charsets.UTF_8).size
+                        repeat(bytesToDelete) {
                             onWriteRawToConsoleStdin("\u007F")
                         }
                         if (currentTypedLine.isNotEmpty()) {

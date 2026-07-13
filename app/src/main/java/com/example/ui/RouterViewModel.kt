@@ -202,6 +202,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
     private var interactiveShellLogId: Long? = null
     private val interactiveShellOutputBuffer = StringBuilder()
     private var interactiveShellJob: Job? = null
+    private var pendingEraseSkips = 0
 
     fun startInteractiveShellSession() {
         val config = _uiState.value.config ?: return
@@ -213,6 +214,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 _uiState.update { it.copy(commandOutput = "") }
 
                 interactiveShellOutputBuffer.setLength(0)
+                pendingEraseSkips = 0
                 val initialText = "Connecting to SSH interactive shell...\r\n"
                 interactiveShellOutputBuffer.append(initialText)
                 val logId = repository.insertConsoleLog("sh", interactiveShellOutputBuffer.toString())
@@ -232,13 +234,31 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                                                  cleanedChunk[i + 1] == ' ' && 
                                                  (cleanedChunk[i + 2] == '\b' || cleanedChunk[i + 2] == '\u0008' || cleanedChunk[i + 2] == '\u007F' || cleanedChunk[i + 2] == '\u007f')
                             if (isErasePattern) {
-                                if (interactiveShellOutputBuffer.isNotEmpty()) {
-                                    interactiveShellOutputBuffer.setLength(interactiveShellOutputBuffer.length - 1)
+                                if (pendingEraseSkips > 0) {
+                                    pendingEraseSkips--
+                                } else {
+                                    if (interactiveShellOutputBuffer.isNotEmpty()) {
+                                        val lastChar = interactiveShellOutputBuffer.last()
+                                        val bytes = lastChar.toString().toByteArray(Charsets.UTF_8).size
+                                        if (bytes > 1) {
+                                            pendingEraseSkips += (bytes - 1)
+                                        }
+                                        interactiveShellOutputBuffer.setLength(interactiveShellOutputBuffer.length - 1)
+                                    }
                                 }
                                 i += 3
                             } else {
-                                if (interactiveShellOutputBuffer.isNotEmpty()) {
-                                    interactiveShellOutputBuffer.setLength(interactiveShellOutputBuffer.length - 1)
+                                if (pendingEraseSkips > 0) {
+                                    pendingEraseSkips--
+                                } else {
+                                    if (interactiveShellOutputBuffer.isNotEmpty()) {
+                                        val lastChar = interactiveShellOutputBuffer.last()
+                                        val bytes = lastChar.toString().toByteArray(Charsets.UTF_8).size
+                                        if (bytes > 1) {
+                                            pendingEraseSkips += (bytes - 1)
+                                        }
+                                        interactiveShellOutputBuffer.setLength(interactiveShellOutputBuffer.length - 1)
+                                    }
                                 }
                                 i++
                             }
@@ -420,17 +440,6 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
 
     fun setCommandInput(input: String) {
         _uiState.update { it.copy(commandInput = input) }
-        viewModelScope.launch {
-            if (interactiveShellJob == null) {
-                switchTab(TabType.CONSOLE)
-                kotlinx.coroutines.delay(1500)
-            } else {
-                switchTab(TabType.CONSOLE)
-                kotlinx.coroutines.delay(200)
-            }
-            writeRawToConsoleStdin(input)
-            _uiState.update { it.copy(commandInput = "") }
-        }
     }
 
     private fun cleanHost(input: String): String {

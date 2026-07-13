@@ -17,8 +17,8 @@ android {
     applicationId = "openwrt.router.control"
     minSdk = 24
     targetSdk = 36
-    versionCode = 7
-    versionName = "1.6.6"
+    versionCode = 9
+    versionName = "1.6.7"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -67,12 +67,12 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
-// Custom task to copy and rename the generated APK to RouterControl-v1.6.5.apk while preserving original app-debug.apk
+// Custom task to copy and rename the generated APK to RouterControl-v1.6.7.apk while preserving original app-debug.apk
 tasks.register<Copy>("copyRenameApk") {
     val buildDir = layout.buildDirectory.get().asFile
     from(File(buildDir, "outputs/apk/debug/app-debug.apk"))
     into(rootProject.layout.projectDirectory.dir(".build-outputs"))
-    rename { "RouterControl-v1.6.5.apk" }
+    rename { "RouterControl-v1.6.7.apk" }
 }
 
 val envScriptFile = File(project.rootDir, "align_arm64_elf.py").absolutePath
