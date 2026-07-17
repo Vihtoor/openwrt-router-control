@@ -39,6 +39,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -74,6 +75,9 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.pointer.*
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -81,7 +85,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.data.ConsoleLog
-import androidx.compose.foundation.text.selection.SelectionContainer
+import com.example.ui.ClipboardInterceptorSelectionContainer
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
@@ -382,8 +386,8 @@ fun MainScreen(viewModel: RouterViewModel) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(translateText("Найдена новая версия:", context) + " ${info.version}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
-                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                        item {
+                    val scrollState = androidx.compose.foundation.rememberScrollState()
+                    Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(scrollState)) {
                             Text(info.releaseNotes, style = MaterialTheme.typography.bodyMedium)
                             Spacer(modifier = Modifier.height(8.dp))
                             val downloadText = "- " + translateText("Скачать обновление вы можете вручную с https://github.com/Vihtoor/openwrt-router-control/releases", context)
@@ -419,7 +423,6 @@ fun MainScreen(viewModel: RouterViewModel) {
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("- " + translateText("Проверить обновление можно вручную в разделе настроек О приложении", context), style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
-                        }
                     }
                 }
             },
@@ -882,6 +885,7 @@ fun MainScreen(viewModel: RouterViewModel) {
                             }
                         )
                         TabType.CONSOLE -> ConsoleTab(
+                            interactiveCursorIndex = state.interactiveCursorIndex,
                             consoleHistory = state.consoleHistory.filter { !it.command.contains("iperf3") },
                             commandOutput = state.commandOutput,
                             sessionCommandHistory = sessionCommandHistory,
@@ -893,6 +897,7 @@ fun MainScreen(viewModel: RouterViewModel) {
                             onClearHistory = { viewModel.startInteractiveShellSession() },
                             onDeleteHistoryItem = { viewModel.deleteFromSessionHistory(it) },
                             onWriteRawToConsoleStdin = { viewModel.writeRawToConsoleStdin(it) },
+                            onAddPendingEraseSkips = { viewModel.addPendingEraseSkips(it) },
                             onAddHistoryItem = { viewModel.addToSessionHistory(it) }
                         )
                         TabType.TEST -> TestTab(
@@ -3167,7 +3172,7 @@ fun parseAnsiToAnnotatedString(text: String): AnnotatedString {
             val plainSegment = text.substring(startTextIdx, i)
             if (plainSegment.isNotEmpty()) {
                 pushStyle(currentStyle)
-                append(plainSegment)
+                append(plainSegment.toCharArray().joinToString("\u200B"))
                 pop()
             }
         }
@@ -3176,6 +3181,7 @@ fun parseAnsiToAnnotatedString(text: String): AnnotatedString {
 
 @Composable
 fun ConsoleTab(
+    interactiveCursorIndex: Int = 0,
     consoleHistory: List<com.example.data.ConsoleLog>,
     commandOutput: String,
     
@@ -3185,6 +3191,7 @@ fun ConsoleTab(
     onClearHistory: () -> Unit,
     onDeleteHistoryItem: (String) -> Unit = {},
     onWriteRawToConsoleStdin: (String) -> Unit = {},
+    onAddPendingEraseSkips: (Int) -> Unit = {},
     onAddHistoryItem: (String) -> Unit = {}
 ) {
     val listState = rememberLazyListState()
@@ -3195,6 +3202,8 @@ fun ConsoleTab(
     var isTerminalFocused by remember { mutableStateOf(false) }
     var cursorVisible by remember { mutableStateOf(false) }
     var currentTypedLine by remember { mutableStateOf("") }
+    var showGestureOverlay by remember { mutableStateOf(false) }
+    var highlightedDirection by remember { mutableStateOf<String?>(null) }
     var lastEnteredCommand by remember { mutableStateOf("") }
     LaunchedEffect(isTerminalFocused) {
         if (isTerminalFocused) {
@@ -3206,6 +3215,7 @@ fun ConsoleTab(
             cursorVisible = false
         }
     }
+    val terminalWindowFocusRequester = remember { FocusRequester() }
     val clearButtonFocusRequester = remember { FocusRequester() }
     val termKeysFocusRequester = remember { FocusRequester() }
     val decreaseBtnFocusRequester = remember { FocusRequester() }
@@ -3216,6 +3226,19 @@ fun ConsoleTab(
     val context = androidx.compose.ui.platform.LocalContext.current
     val isTv = remember {
         context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+    }
+    val sharedPrefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    var showConsoleInteractiveTip by remember { mutableStateOf(sharedPrefs.getBoolean("show_console_tip_v1", true)) }
+    val focusRequesterConsoleTip = remember { androidx.compose.ui.focus.FocusRequester() }
+    var isDismissButtonFocused by remember { mutableStateOf(false) }
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    
+    androidx.compose.runtime.LaunchedEffect(showConsoleInteractiveTip, isTv) {
+        if (showConsoleInteractiveTip && isTv) {
+            keyboardController?.hide()
+            kotlinx.coroutines.delay(100)
+            try { focusRequesterConsoleTip.requestFocus() } catch (e: Exception) {}
+        }
     }
     val primaryColor = MaterialTheme.colorScheme.primary
     val locale = remember { context.resources.configuration.locales[0].language }
@@ -3377,12 +3400,12 @@ fun ConsoleTab(
         modifier = Modifier
             .fillMaxSize()
             .imePadding()
-            .padding(16.dp)
+            .padding(start = 10.dp, end = 10.dp, top = 16.dp, bottom = 16.dp)
             .testTag("console_tab_view"),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -3404,6 +3427,7 @@ fun ConsoleTab(
                         .focusRequester(decreaseBtnFocusRequester)
                         .focusProperties {
                             right = increaseBtnFocusRequester
+                            down = terminalWindowFocusRequester
                         }
                         .onFocusChanged { isDecreaseBtnFocused = it.isFocused }
                         .drawWithContent {
@@ -3433,6 +3457,7 @@ fun ConsoleTab(
                         .focusProperties {
                             left = decreaseBtnFocusRequester
                             right = copyBtnFocusRequester
+                            down = terminalWindowFocusRequester
                         }
                         .onFocusChanged { isIncreaseBtnFocused = it.isFocused }
                         .drawWithContent {
@@ -3470,6 +3495,7 @@ fun ConsoleTab(
                         .focusProperties {
                             left = increaseBtnFocusRequester
                             right = pasteBtnFocusRequester
+                            down = terminalWindowFocusRequester
                         }
                         .onFocusChanged { isCopyBtnFocused = it.isFocused }
                         .border(
@@ -3489,19 +3515,10 @@ fun ConsoleTab(
                 IconButton(
                     onClick = {
                         clipboardManager.getText()?.text?.let { pasteText ->
-                            pasteText.forEach { char ->
-                                val toSend = if (char == '\n') "\r" else char.toString()
-                                onWriteRawToConsoleStdin(toSend)
-                                if (char == '\n' || char == '\r') {
-                                    val cmd = currentTypedLine.trim()
-                                    if (cmd.isNotEmpty()) {
-                                        lastEnteredCommand = cmd
-                                        onAddHistoryItem(cmd)
-                                    }
-                                    currentTypedLine = ""
-                                } else {
-                                    currentTypedLine += char
-                                }
+                            val cleanPaste = pasteText.replace("\n", "").replace("\r", "")
+                            cleanPaste.forEach { char ->
+                                onWriteRawToConsoleStdin(char.toString())
+                                currentTypedLine += char
                             }
                         }
                     },
@@ -3512,6 +3529,7 @@ fun ConsoleTab(
                         .focusProperties {
                             left = copyBtnFocusRequester
                             right = clearButtonFocusRequester
+                            down = terminalWindowFocusRequester
                         }
                         .onFocusChanged { isPasteBtnFocused = it.isFocused }
                         .border(
@@ -3536,6 +3554,7 @@ fun ConsoleTab(
                         .focusRequester(clearButtonFocusRequester)
                         .focusProperties {
                             left = pasteBtnFocusRequester
+                            down = terminalWindowFocusRequester
                         }
                         .onFocusChanged { isClearBtnFocused = it.isFocused }
                         .border(
@@ -3583,28 +3602,81 @@ fun ConsoleTab(
                     color = if (isTerminalFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                     shape = RoundedCornerShape(12.dp)
                 )
-                .clickable {
-                    terminalView?.requestFocus()
-                                        terminalView?.let { 
-                        imm.restartInput(it)
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                            it.windowInsetsController?.show(android.view.WindowInsets.Type.ime())
-                        } else {
-                            imm.showSoftInput(it, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT) 
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { offset: androidx.compose.ui.geometry.Offset ->
+                            terminalView?.requestFocus()
+                            terminalView?.let {
+                                imm.restartInput(it)
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                                    it.windowInsetsController?.show(android.view.WindowInsets.Type.ime())
+                                } else {
+                                    imm.showSoftInput(it, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                                }
+                            }
+                        }
+                    )
+                }
+                .padding(horizontal = 8.dp, vertical = 12.dp)
+        ) {
+            if (showGestureOverlay) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 24.dp, y = -26.dp)
+                        .padding(2.dp)
+                        .background(Color(0x88000000), RoundedCornerShape(8.dp))
+                        .padding(8.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowUp,
+                            contentDescription = "Up",
+                            tint = if (highlightedDirection == "UP") Color.Green else Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Row {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowLeft,
+                                contentDescription = "Left",
+                                tint = if (highlightedDirection == "LEFT") Color.Green else Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Down",
+                                tint = if (highlightedDirection == "DOWN") Color.Green else Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowRight,
+                                contentDescription = "Right",
+                                tint = if (highlightedDirection == "RIGHT") Color.Green else Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
                         }
                     }
                 }
-                .padding(12.dp)
-        ) {
+            }
+
             val clipboardManagerLocal = androidx.compose.ui.platform.LocalClipboardManager.current
             
             androidx.compose.ui.viewinterop.AndroidView(
+
                 factory = { ctx ->
                     com.example.ui.TerminalInputView(ctx).apply {
                         terminalView = this
                     }
                 },
                 update = { view ->
+                    view.shouldRequestFocusOnWindowFocus = !showConsoleInteractiveTip
+                    view.isFocusable = !showConsoleInteractiveTip
+                    view.isFocusableInTouchMode = !showConsoleInteractiveTip
+                    if (showConsoleInteractiveTip) {
+                        view.clearFocus()
+                        val imm = view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                        imm.hideSoftInputFromWindow(view.windowToken, 0)
+                    }
                     view.onProcessIncomingText = { insertedText ->
                         for (char in insertedText) {
                             val toSend = if (char == '\n') "\r" else char.toString()
@@ -3624,30 +3696,62 @@ fun ConsoleTab(
                     view.onHandlePaste = {
                         val pastedText = clipboardManagerLocal.getText()?.text
                         if (pastedText != null) {
-                            view.onProcessIncomingText(pastedText.toString())
+                            val cleanPaste = pastedText.toString().replace("\n", "").replace("\r", "")
+                            view.onProcessIncomingText(cleanPaste)
                         }
                     }
                     view.onDeleteSurroundingText = { before, _ ->
-                        val textToDelete = currentTypedLine.takeLast(before)
-                        val bytesToDelete = textToDelete.toByteArray(Charsets.UTF_8).size
-                        repeat(bytesToDelete) {
-                            onWriteRawToConsoleStdin("\u007F")
-                        }
                         if (currentTypedLine.isNotEmpty()) {
                             val actualBefore = minOf(before, currentTypedLine.length)
+                            val stringToDelete = currentTypedLine.takeLast(actualBefore)
+                            val bytesToDelete = stringToDelete.toByteArray(Charsets.UTF_8).size
+                            
+                            repeat(bytesToDelete) {
+                                onWriteRawToConsoleStdin("\u007F")
+                            }
                             currentTypedLine = currentTypedLine.dropLast(actualBefore)
+                            
+                            val ghostSkips = (bytesToDelete - actualBefore)
+                            if (ghostSkips > 0) {
+                                onAddPendingEraseSkips(ghostSkips)
+                            }
+                        } else {
+                            repeat(before) {
+                                onWriteRawToConsoleStdin("\u007F")
+                            }
                         }
                     }
-                    view.onSendKeyEvent = { keyEvent ->
+                    view.onSendKeyEvent = { keyEvent, isIme ->
                         if (keyEvent.action == android.view.KeyEvent.ACTION_DOWN) {
-                            val isUpDown = keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP || keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN
-                            if (isUpDown) {
-                                if (consoleHistory.isNotEmpty()) {
-                                    scope.launch {
-                                        val amount = if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) -150f else 150f
-                                        listState.animateScrollBy(amount)
-                                    }
+                            if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+                                if (listState.canScrollForward) {
+                                    scope.launch { listState.animateScrollBy(150f) }
+                                } else {
+                                    try { clearButtonFocusRequester.requestFocus() } catch (e: Exception) {}
                                 }
+                                true
+                            } else if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+                                if (listState.canScrollBackward) {
+                                    scope.launch { listState.animateScrollBy(-150f) }
+                                } else {
+                                    try { termKeysFocusRequester.requestFocus() } catch (e: Exception) {}
+                                }
+                                true
+                            } else if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
+                                onWriteRawToConsoleStdin("\u001B[D")
+                                true
+                            } else if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                                onWriteRawToConsoleStdin("\u001B[C")
+                                true
+                            } else if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER) {
+                                val imm = context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                                imm.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                                true
+                            } else if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_CHANNEL_UP) {
+                                onWriteRawToConsoleStdin("\u001B[A")
+                                true
+                            } else if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_CHANNEL_DOWN) {
+                                onWriteRawToConsoleStdin("\u001B[B")
                                 true
                             } else if (keyEvent.keyCode == android.view.KeyEvent.KEYCODE_ENTER) {
                                 view.onProcessIncomingText("\r")
@@ -3666,7 +3770,10 @@ fun ConsoleTab(
                         isTerminalFocused = hasFocus
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().focusRequester(terminalWindowFocusRequester).focusProperties {
+                    up = clearButtonFocusRequester
+                    down = termKeysFocusRequester
+                }
             )
 
             Box(modifier = Modifier.fillMaxSize()) {
@@ -3680,7 +3787,8 @@ fun ConsoleTab(
                                         text = translateText("Подключение к интерактивной оболочке SSH...", context),
                                         color = Color(0xFF30D158),
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = (terminalFontSize + 1f).sp,
+                                        
+                                                    fontSize = (terminalFontSize + 1f).sp,
                                         modifier = Modifier.padding(16.dp)
                                     )
                                 }
@@ -3692,35 +3800,40 @@ fun ConsoleTab(
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     itemsIndexed(consoleHistory) { index, log ->
-                                        SelectionContainer {
+                                        com.example.ui.ClipboardInterceptorSelectionContainer {
                                             Column(modifier = Modifier.fillMaxWidth()) {
                                                 Text(
-                                                    text = "root@openwrt:~# ${log.command}",
+                                                    text = "root@openwrt:~# ${log.command}".toCharArray().joinToString("\u200B"),
                                                     color = Color(0xFFFF9500),
                                                     fontFamily = FontFamily.Monospace,
+                                                    
                                                     fontSize = (terminalFontSize + 1f).sp,
                                                     fontWeight = FontWeight.Bold,
                                                     lineHeight = (terminalFontSize + 4f).sp
                                                 )
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 
-                                                val parsedOutput = androidx.compose.runtime.remember(log.output) {
-                                                    parseAnsiToAnnotatedString(log.output)
-                                                }
                                                 val isMostRecentSh = index == 0 && log.command == "sh"
-                                                val finalOutput = if (isMostRecentSh && cursorVisible) {
-                                                    androidx.compose.ui.text.buildAnnotatedString {
-                                                        append(parsedOutput)
-                                                        append("█")
+                                                val outputWithCursor = if (isMostRecentSh) {
+                                                    val cursorChar = if (cursorVisible) "█" else " "
+                                                    if (interactiveCursorIndex in 0..log.output.length) {
+                                                        log.output.substring(0, interactiveCursorIndex) + cursorChar + log.output.substring(interactiveCursorIndex)
+                                                    } else {
+                                                        log.output + cursorChar
                                                     }
                                                 } else {
-                                                    parsedOutput
+                                                    log.output
+                                                }
+                                                val finalOutput = androidx.compose.runtime.remember(outputWithCursor) {
+                                                    parseAnsiToAnnotatedString(outputWithCursor)
                                                 }
                                                 
                                                 Text(
                                                     text = finalOutput,
+                                                    
                                                     color = Color(0xFF30D158),
                                                     fontFamily = FontFamily.Monospace,
+                                                    
                                                     fontSize = terminalFontSize.sp,
                                                     lineHeight = (terminalFontSize + 3f).sp,
                                                     modifier = Modifier.padding(start = 8.dp)
@@ -3732,6 +3845,243 @@ fun ConsoleTab(
                             }
 
                         }
+
+            val gestureModifier = Modifier.pointerInput(Unit) {
+                var accumulatedX = 0f
+                var accumulatedY = 0f
+                val threshold = 70f
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset: androidx.compose.ui.geometry.Offset ->
+                        showGestureOverlay = true
+                        highlightedDirection = null
+                        accumulatedX = 0f
+                        accumulatedY = 0f
+                    },
+                    onDragEnd = {
+                        showGestureOverlay = false
+                        highlightedDirection = null
+                    },
+                    onDragCancel = {
+                        showGestureOverlay = false
+                        highlightedDirection = null
+                    },
+                    onDrag = { change , dragAmount ->
+                        change.consume()
+                        accumulatedX += dragAmount.x
+                        accumulatedY += dragAmount.y
+                        
+                        if (kotlin.math.abs(accumulatedX) > threshold || kotlin.math.abs(accumulatedY) > threshold) {
+                            if (kotlin.math.abs(accumulatedX) > kotlin.math.abs(accumulatedY)) {
+                                if (accumulatedX > 0) {
+                                    highlightedDirection = "RIGHT"
+                                    onWriteRawToConsoleStdin("\u001B[C")
+                                } else {
+                                    highlightedDirection = "LEFT"
+                                    onWriteRawToConsoleStdin("\u001B[D")
+                                }
+                            } else {
+                                if (accumulatedY > 0) {
+                                    highlightedDirection = "DOWN"
+                                    onWriteRawToConsoleStdin("\u001B[B")
+                                } else {
+                                    highlightedDirection = "UP"
+                                    onWriteRawToConsoleStdin("\u001B[A")
+                                }
+                            }
+                            accumulatedX = 0f
+                            accumulatedY = 0f
+                        }
+                    }
+                )
+            }
+
+            val edgeSize = 16.dp
+            Box(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().height(edgeSize).then(gestureModifier))
+            Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(edgeSize).then(gestureModifier))
+            Box(modifier = Modifier.align(Alignment.CenterStart).fillMaxHeight().width(edgeSize).then(gestureModifier))
+            Box(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(edgeSize).then(gestureModifier))
+            
+            if (showConsoleInteractiveTip) {
+                val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "arrow_animation")
+                val arrowOffset by infiniteTransition.animateFloat(
+                    initialValue = -6f,
+                    targetValue = 6f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(durationMillis = 900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "arrow_bounce"
+                )
+                val arrowAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.5f,
+                    targetValue = 0.85f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(durationMillis = 900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "arrow_pulse"
+                )
+                val buttonAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.2f,
+                    targetValue = 1.0f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(durationMillis = 500),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "button_pulse"
+                )
+
+                // The tip card
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.Card(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFF9500)),
+                        modifier = Modifier.widthIn(max = if (isTv) 450.dp else 300.dp).padding(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Info,
+                                    contentDescription = "Tip",
+                                    tint = Color(0xFFFF9500),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = com.example.IperfLocalizations.getConsoleTipTitle(locale),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                            Text(
+                                text = if (isTv) com.example.IperfLocalizations.getConsoleTipBodyTv(locale) else com.example.IperfLocalizations.getConsoleTipBody(locale),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.85f),
+                                lineHeight = 16.sp
+                            )
+                            Button(
+                                onClick = {
+                                    showConsoleInteractiveTip = false
+                                    sharedPrefs.edit().putBoolean("show_console_tip_v1", false).apply()
+                                },
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9500)),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                                border = if (isDismissButtonFocused) androidx.compose.foundation.BorderStroke(2.dp, Color.White) else null,
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .align(Alignment.End)
+                                    .height(32.dp)
+                                    .alpha(buttonAlpha)
+                                    .onFocusChanged { 
+                                        isDismissButtonFocused = it.isFocused 
+                                        if (!it.isFocused && isTv && showConsoleInteractiveTip) {
+                                            keyboardController?.hide()
+                                            try { focusRequesterConsoleTip.requestFocus() } catch (e: Exception) {}
+                                        }
+                                    }
+                                    .focusRequester(focusRequesterConsoleTip)
+                            ) {
+                                Text(
+                                    text = com.example.IperfLocalizations.getSplitterTipDismiss(locale),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Black,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                if (!isTv) {
+                    // Left arrow (vertical, on the left edge)
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier.align(Alignment.CenterStart).size(width = 12.dp, height = 24.dp).offset(x = (-8).dp, y = arrowOffset.dp)
+                    ) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            val hw = size.width / 2f
+                            moveTo(size.width / 2f, 0f)
+                            lineTo(0f, hw)
+                            lineTo(size.width * 0.35f, hw)
+                            lineTo(size.width * 0.35f, size.height - hw)
+                            lineTo(0f, size.height - hw)
+                            lineTo(size.width / 2f, size.height)
+                            lineTo(size.width, size.height - hw)
+                            lineTo(size.width * 0.65f, size.height - hw)
+                            lineTo(size.width * 0.65f, hw)
+                            lineTo(size.width, hw)
+                            close()
+                        }
+                        drawPath(path = path, color = Color(0xFFFF9500).copy(alpha = arrowAlpha))
+                    }
+                    // Right arrow (vertical, on the right edge)
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier.align(Alignment.CenterEnd).size(width = 12.dp, height = 24.dp).offset(x = 8.dp, y = (-arrowOffset).dp)
+                    ) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            val hw = size.width / 2f
+                            moveTo(size.width / 2f, 0f)
+                            lineTo(0f, hw)
+                            lineTo(size.width * 0.35f, hw)
+                            lineTo(size.width * 0.35f, size.height - hw)
+                            lineTo(0f, size.height - hw)
+                            lineTo(size.width / 2f, size.height)
+                            lineTo(size.width, size.height - hw)
+                            lineTo(size.width * 0.65f, size.height - hw)
+                            lineTo(size.width * 0.65f, hw)
+                            lineTo(size.width, hw)
+                            close()
+                        }
+                        drawPath(path = path, color = Color(0xFFFF9500).copy(alpha = arrowAlpha))
+                    }
+                    // Top arrow (horizontal, on the top edge)
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier.align(Alignment.TopCenter).size(width = 24.dp, height = 12.dp).offset(x = arrowOffset.dp, y = (-12).dp)
+                    ) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            val hw = size.height / 2f
+                            moveTo(0f, size.height / 2f)
+                            lineTo(hw, 0f)
+                            lineTo(hw, size.height * 0.35f)
+                            lineTo(size.width - hw, size.height * 0.35f)
+                            lineTo(size.width - hw, 0f)
+                            lineTo(size.width, size.height / 2f)
+                            lineTo(size.width - hw, size.height)
+                            lineTo(size.width - hw, size.height * 0.65f)
+                            lineTo(hw, size.height * 0.65f)
+                            lineTo(hw, size.height)
+                            close()
+                        }
+                        drawPath(path = path, color = Color(0xFFFF9500).copy(alpha = arrowAlpha))
+                    }
+                    // Bottom arrow (horizontal, on the bottom edge)
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier.align(Alignment.BottomCenter).size(width = 24.dp, height = 12.dp).offset(x = (-arrowOffset).dp, y = 12.dp)
+                    ) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            val hw = size.height / 2f
+                            moveTo(0f, size.height / 2f)
+                            lineTo(hw, 0f)
+                            lineTo(hw, size.height * 0.35f)
+                            lineTo(size.width - hw, size.height * 0.35f)
+                            lineTo(size.width - hw, 0f)
+                            lineTo(size.width, size.height / 2f)
+                            lineTo(size.width - hw, size.height)
+                            lineTo(size.width - hw, size.height * 0.65f)
+                            lineTo(hw, size.height * 0.65f)
+                            lineTo(hw, size.height)
+                            close()
+                        }
+                        drawPath(path = path, color = Color(0xFFFF9500).copy(alpha = arrowAlpha))
+                    }
+                }
+            }
         }
 
         // Termux-style auxiliary keyboard control bar
@@ -3739,6 +4089,7 @@ fun ConsoleTab(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 6.dp)
                 .background(Color(0xFF1E1E24), RoundedCornerShape(8.dp))
         ) {
             val keyboardRowState = rememberLazyListState()
@@ -3771,6 +4122,7 @@ fun ConsoleTab(
                             .background(if (isKeyFocused) MaterialTheme.colorScheme.primary else Color(0xFF2D2D36))
                             .then(itemModifier)
                             .onFocusChanged { isKeyFocused = it.isFocused }
+                            .focusProperties { up = terminalWindowFocusRequester }
                             .focusable()
                             .clickable {
                                 when (key) {
@@ -3976,14 +4328,22 @@ fun ConsoleTab(
                                                     else Color(0xFF2D2D36)
                                                 )
                                                 .clickable {
-                                                    onWriteRawToConsoleStdin(favCmd + "\r")
+                                                    val cleanCmd = favCmd.replace("\n", "").replace("\r", "")
+                                                    cleanCmd.forEach { char ->
+                                                        onWriteRawToConsoleStdin(char.toString())
+                                                        currentTypedLine += char
+                                                    }
                                                     showFavoritesDialog = false
                                                 }
                                                 .onKeyEvent { keyEvent ->
                                                     if (keyEvent.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
                                                         val keyCode = keyEvent.nativeKeyEvent.keyCode
                                                         if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || keyCode == android.view.KeyEvent.KEYCODE_ENTER) {
-                                                            onWriteRawToConsoleStdin(favCmd + "\r")
+                                                            val cleanCmd = favCmd.replace("\n", "").replace("\r", "")
+                                                            cleanCmd.forEach { char ->
+                                                                onWriteRawToConsoleStdin(char.toString())
+                                                                currentTypedLine += char
+                                                            }
                                                             showFavoritesDialog = false
                                                             true
                                                         } else {
@@ -4128,14 +4488,22 @@ if (showHistoryDialog) {
                                                     else Color(0xFF2D2D36)
                                                 )
                                                 .clickable {
-                                                    onWriteRawToConsoleStdin(itemCmd + "\r")
+                                                    val cleanCmd = itemCmd.replace("\n", "").replace("\r", "")
+                                                    cleanCmd.forEach { char ->
+                                                        onWriteRawToConsoleStdin(char.toString())
+                                                        currentTypedLine += char
+                                                    }
                                                     showHistoryDialog = false
                                                 }
                                                 .onKeyEvent { keyEvent ->
                                                     if (keyEvent.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
                                                         val keyCode = keyEvent.nativeKeyEvent.keyCode
                                                         if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || keyCode == android.view.KeyEvent.KEYCODE_ENTER) {
-                                                            onWriteRawToConsoleStdin(itemCmd + "\r")
+                                                            val cleanCmd = itemCmd.replace("\n", "").replace("\r", "")
+                                                            cleanCmd.forEach { char ->
+                                                                onWriteRawToConsoleStdin(char.toString())
+                                                                currentTypedLine += char
+                                                            }
                                                             showHistoryDialog = false
                                                             true
                                                         } else {
@@ -4632,7 +5000,7 @@ fun IPerfFullScreen(
                                 }
                             }
                         }
-                        androidx.compose.foundation.text.selection.SelectionContainer(
+                        com.example.ui.ClipboardInterceptorSelectionContainer(
                             modifier = Modifier.weight(1f).fillMaxWidth()
                         ) {
                             LazyColumn(
@@ -4908,7 +5276,7 @@ fun IPerfFullScreen(
                                     )
                                 }
                             } else {
-                                androidx.compose.foundation.text.selection.SelectionContainer(
+                                com.example.ui.ClipboardInterceptorSelectionContainer(
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     LazyColumn(
@@ -4920,9 +5288,10 @@ fun IPerfFullScreen(
                                         items(state.consoleHistory) { log ->
                                             Column(modifier = Modifier.fillMaxWidth()) {
                                                 Text(
-                                                    text = "root@openwrt:~# ${log.command}",
+                                                    text = "root@openwrt:~# ${log.command}".toCharArray().joinToString("\u200B"),
                                                     color = Color(0xFFFF9500),
                                                     fontFamily = FontFamily.Monospace,
+                                                    
                                                     fontSize = (routerConsoleFontSize + 1f).sp,
                                                     fontWeight = FontWeight.Bold,
                                                     lineHeight = (routerConsoleFontSize + 4f).sp
@@ -4932,6 +5301,7 @@ fun IPerfFullScreen(
                                                     text = parseAnsiToAnnotatedString(log.output),
                                                     color = Color(0xFF30D158),
                                                     fontFamily = FontFamily.Monospace,
+                                                    
                                                     fontSize = routerConsoleFontSize.sp,
                                                     lineHeight = (routerConsoleFontSize + 3f).sp,
                                                     modifier = Modifier.padding(start = 8.dp)
@@ -5185,7 +5555,7 @@ fun IPerfFullScreen(
                                 }
                             }
                         }
-                        androidx.compose.foundation.text.selection.SelectionContainer(
+                        com.example.ui.ClipboardInterceptorSelectionContainer(
                             modifier = Modifier.weight(1f).fillMaxWidth()
                         ) {
                             LazyColumn(
@@ -5379,7 +5749,7 @@ fun IPerfFullScreen(
                                     )
                                 }
                             } else {
-                                androidx.compose.foundation.text.selection.SelectionContainer(
+                                com.example.ui.ClipboardInterceptorSelectionContainer(
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     LazyColumn(
@@ -5391,9 +5761,10 @@ fun IPerfFullScreen(
                                         items(state.consoleHistory) { log ->
                                             Column(modifier = Modifier.fillMaxWidth()) {
                                                 Text(
-                                                    text = "root@openwrt:~# ${log.command}",
+                                                    text = "root@openwrt:~# ${log.command}".toCharArray().joinToString("\u200B"),
                                                     color = Color(0xFFFF9500),
                                                     fontFamily = FontFamily.Monospace,
+                                                    
                                                     fontSize = (routerConsoleFontSize + 1f).sp,
                                                     fontWeight = FontWeight.Bold,
                                                     lineHeight = (routerConsoleFontSize + 4f).sp
@@ -5403,6 +5774,7 @@ fun IPerfFullScreen(
                                                     text = parseAnsiToAnnotatedString(log.output),
                                                     color = Color(0xFF30D158),
                                                     fontFamily = FontFamily.Monospace,
+                                                    
                                                     fontSize = routerConsoleFontSize.sp,
                                                     lineHeight = (routerConsoleFontSize + 3f).sp,
                                                     modifier = Modifier.padding(start = 8.dp)

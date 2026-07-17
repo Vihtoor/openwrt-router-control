@@ -1364,4 +1364,64 @@ What to look out for in the results: In the final report, pay attention to the L
             else -> "Close"
         }
     }
+
+    fun getConsoleTipTitle(lang: String): String {
+        return when (lang) {
+            "ru" -> "Управление"
+            "uk" -> "Керування"
+            "be" -> "Кіраванне"
+            "de" -> "Steuerung"
+            "es" -> "Control"
+            "fr" -> "Contrôle"
+            "it" -> "Controllo"
+            "pt" -> "Controle"
+            "da" -> "Styring"
+            "fi" -> "Hallinta"
+            "kk" -> "Басқару"
+            "lt" -> "Valdymas"
+            "lv" -> "Vadība"
+            "sv" -> "Kontroll"
+            else -> "Control"
+        }
+    }
+
+    fun getConsoleTipBodyTv(lang: String): String {
+        return when (lang) {
+            "ru" -> "Кнопки переключения каналов на пульте управления позволяют листать историю команд. Стрелки влево и вправо на пульте позволяют перемещать курсор по команде."
+            "uk" -> "Кнопки перемикання каналів на пульті управління дозволяють гортати історію команд. Стрілки вліво і вправо на пульті дозволяють переміщати курсор по команді."
+            "be" -> "Кнопкі пераключэння каналаў на пульце кіравання дазваляюць гартаць гісторыю каманд. Стрэлкі налева і направа на пульце дазваляюць перамяшчаць курсор па камандзе."
+            "de" -> "Mit den Kanalwechseltasten auf der Fernbedienung können Sie durch den Befehlsverlauf blättern. Mit den Links- und Rechtspfeilen auf der Fernbedienung können Sie den Cursor im Befehl bewegen."
+            "es" -> "Los botones de cambio de canal en el mando a distancia permiten desplazarse por el historial de comandos. Las flechas izquierda y derecha del mando a distancia permiten mover el cursor en el comando."
+            "fr" -> "Les boutons de changement de chaîne de la télécommande vous permettent de faire défiler l'historique des commandes. Les flèches gauche et droite de la télécommande vous permettent de déplacer le curseur dans la commande."
+            "it" -> "I pulsanti di cambio canale sul telecomando consentono di scorrere la cronologia dei comandi. Le frecce sinistra e destra sul telecomando consentono di spostare il cursore nel comando."
+            "pt" -> "Os botões de mudança de canal no controle remoto permitem que você percorra o histórico de comandos. As setas esquerda e direita no controle remoto permitem mover o cursor no comando."
+            "da" -> "Kanalvælgerknapperne på fjernbetjeningen giver dig mulighed for at rulle gennem kommandohistorikken. Venstre og højre pil på fjernbetjeningen giver dig mulighed for at flytte markøren i kommandoen."
+            "fi" -> "Kaukosäätimen kanavanvaihtopainikkeilla voit selata komentohistoriaa. Kaukosäätimen vasen ja oikea nuoli mahdollistavat kohdistimen siirtämisen komennossa."
+            "kk" -> "Қашықтан басқару пультіндегі арналарды ауыстыру түймелері пәрмендер тарихын айналдыруға мүмкіндік береді. Пульттегі сол және оң жақ көрсеткілер курсорды пәрмен бойынша жылжытуға мүмкіндік береді."
+            "lt" -> "Nuotolinio valdymo pulto kanalų perjungimo mygtukai leidžia slinkti komandų istoriją. Nuotolinio valdymo pulto rodyklės kairėn ir dešinėn leidžia perkelti žymeklį komandoje."
+            "lv" -> "Tālvadības pults kanālu pārslēgšanas pogas ļauj ritināt komandu vēsturi. Tālvadības pults kreisā un labā bultiņa ļauj pārvietot kursoru komandā."
+            "sv" -> "Kanalbytarknapparna på fjärrkontrollen låter dig bläddra i kommandohistoriken. Vänster och höger pilar på fjärrkontrollen låter dig flytta markören i kommandot."
+            else -> "The channel switching buttons on the remote control allow you to scroll through the command history. The left and right arrows on the remote control allow you to move the cursor in the command."
+        }
+    }
+
+    fun getConsoleTipBody(lang: String): String {
+        return when (lang) {
+            "ru" -> "Проведите пальцем вдоль левого или правого края рамки, чтобы выбрать команду из истории команд. Проведите пальцем вдоль верхнего или нижнего края рамки, чтобы перемещать курсор в строке команды."
+            "uk" -> "Проведіть пальцем вздовж лівого або правого краю рамки, щоб вибрати команду з історії команд. Проведіть пальцем вздовж верхнього або нижнього краю рамки, щоб переміщати курсор у рядку команди."
+            "be" -> "Правядзіце пальцам уздоўж левага або правага краю рамкі, каб выбраць каманду з гісторыі каманд. Правядзіце пальцам уздоўж верхняга або ніжняга краю рамкі, каб перамяшчаць курсор у радку каманды."
+            "de" -> "Wischen Sie am linken oder rechten Rand entlang, um einen Befehl aus dem Verlauf auszuwählen. Wischen Sie am oberen oder unteren Rand entlang, um den Cursor in der Befehlszeile zu bewegen."
+            "es" -> "Desliza a lo largo del borde izquierdo o derecho para seleccionar un comando del historial. Desliza a lo largo del borde superior o inferior para mover el cursor en la línea de comando."
+            "fr" -> "Balayez le long du bord gauche ou droit pour sélectionner une commande dans l'historique. Balayez le long du bord supérieur ou inférieur pour déplacer le curseur dans la ligne de commande."
+            "it" -> "Scorri lungo il bordo sinistro o destro per selezionare un comando dalla cronologia. Scorri lungo il bordo superiore o inferiore per spostare il cursore nella riga di comando."
+            "pt" -> "Deslize ao longo da borda esquerda ou direita para selecionar um comando do histórico. Deslize ao longo da borda superior ou inferior para mover o cursor na linha de comando."
+            "da" -> "Stryg langs venstre eller højre kant for at vælge en kommando fra historikken. Stryg langs øverste eller nederste kant for at flytte markøren i kommandolinjen."
+            "fi" -> "Pyyhkäise vasenta tai oikeaa reunaa pitkin valitaksesi komennon historiasta. Pyyhkäise ylä- tai alareunaa pitkin siirtääksesi kohdistinta komentorivillä."
+            "kk" -> "Пәрмендер тарихынан пәрменді таңдау үшін жақтаудың сол немесе оң жақ шетімен сырғытыңыз. Пәрмен жолында курсорды жылжыту үшін жақтаудың жоғарғы немесе төменгі шетімен сырғытыңыз."
+            "lt" -> "Braukite kairiuoju arba dešiniuoju kraštu, kad pasirinktumėte komandą iš istorijos. Braukite viršutiniu arba apatiniu kraštu, kad perkeltumėte žymeklį komandų eilutėje."
+            "lv" -> "Pārvelciet gar kreiso vai labo malu, lai izvēlētos komandu no vēstures. Pārvelciet gar augšējo vai apakšējo malu, lai pārvietotu kursoru komandrindā."
+            "sv" -> "Svep längs vänster eller höger kant för att välja ett kommando från historiken. Svep längs övre eller nedre kanten för att flytta markören på kommandoraden."
+            else -> "Swipe along the left or right edge to select a command from the history. Swipe along the top or bottom edge to move the cursor in the command line."
+        }
+    }
 }

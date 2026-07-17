@@ -294,11 +294,9 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
             }.ifEmpty { "OpenWrt" }
             
             // Parse OpenVPN
-            val isOpenVpnActive = openVpnPart.lines().any { line ->
-                isValidOpenVpnProcessLine(line)
-            }
-            val vpnInstanceName = if (isOpenVpnActive) extractOpenVpnInstanceName(openVpnPart) else null
-            val activeOpenVpnNamesSet = if (isOpenVpnActive) extractAllOpenVpnInstanceNames(openVpnPart) else emptySet()
+            val activeOpenVpnNamesSet = extractAllOpenVpnInstanceNames(openVpnPart)
+            val isOpenVpnActive = activeOpenVpnNamesSet.isNotEmpty()
+            val vpnInstanceName = activeOpenVpnNamesSet.firstOrNull()
             val activeOpenVpnNamesStr = activeOpenVpnNamesSet.joinToString(",")
             
             // Parse WG
@@ -372,9 +370,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
                 // Minimal quick fallback if combined query throws exception
                 val openVpnCheck = try {
                     val res = sshClientManager.executeCommand(config, "ps -w | grep '[o]penvpn'")
-                    res.stdout.lines().any { line ->
-                        isValidOpenVpnProcessLine(line)
-                    }
+                    extractAllOpenVpnInstanceNames(res.stdout).isNotEmpty()
                 } catch (ex: Exception) { false }
                 
                 val wireguardCheck = try {

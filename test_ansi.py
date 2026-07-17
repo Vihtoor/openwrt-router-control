@@ -1,0 +1,2 @@
+print(chr(0x40))
+print(chr(0x7e))

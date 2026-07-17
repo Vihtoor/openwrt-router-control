@@ -16,48 +16,19 @@ class TerminalInputView(
     var onProcessIncomingText: (String) -> Unit = {},
     var onHandlePaste: () -> Unit = {},
     var onDeleteSurroundingText: (Int, Int) -> Unit = { _, _ -> },
-    var onSendKeyEvent: (KeyEvent) -> Boolean = { false }
+    var onSendKeyEvent: (KeyEvent, Boolean) -> Boolean = { _, _ -> false }
 ) : View(context) {
 
-    private val gestureDetector = android.view.GestureDetector(context, object : android.view.GestureDetector.SimpleOnGestureListener() {
-        override fun onLongPress(e: android.view.MotionEvent) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                startActionMode(object : ActionMode.Callback2() {
-                    override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-                        menu?.add(0, android.R.id.paste, 0, android.R.string.paste)
-                        return true
-                    }
+    var shouldRequestFocusOnWindowFocus = true
 
-                    override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-                        return false
-                    }
-
-                    override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
-                        if (item?.itemId == android.R.id.paste) {
-                            onHandlePaste()
-                            mode?.finish()
-                            return true
-                        }
-                        return false
-                    }
-
-                    override fun onDestroyActionMode(mode: ActionMode?) {}
-                }, ActionMode.TYPE_FLOATING)
-            }
-        }
-    })
-
+    
     init {
         isFocusable = true
         isFocusableInTouchMode = true
         isClickable = true
     }
 
-    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
-        gestureDetector.onTouchEvent(event)
-        return super.onTouchEvent(event)
-    }
-
+    
     override fun onCheckIsTextEditor(): Boolean = true
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
@@ -99,7 +70,7 @@ class TerminalInputView(
             override fun sendKeyEvent(event: KeyEvent): Boolean {
                 if (event.action == KeyEvent.ACTION_DOWN) {
                 }
-                val handled = onSendKeyEvent(event)
+                val handled = onSendKeyEvent(event, true)
                 return if (handled) true else super.sendKeyEvent(event)
             }
 
@@ -114,13 +85,13 @@ class TerminalInputView(
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val handled = onSendKeyEvent(event)
+        val handled = onSendKeyEvent(event, false)
         return if (handled) true else super.dispatchKeyEvent(event)
     }
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
-        if (hasWindowFocus) {
+        if (hasWindowFocus && shouldRequestFocusOnWindowFocus) {
             post {
                 val result = requestFocus()
                 

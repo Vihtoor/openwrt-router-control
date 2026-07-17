@@ -1,0 +1,4 @@
+import android.view.InputDevice
+
+// KEYBOARD_TYPE_ALPHABETIC = 2
+// KEYBOARD_TYPE_NON_ALPHABETIC = 1

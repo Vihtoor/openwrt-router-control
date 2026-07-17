@@ -138,6 +138,7 @@ data class DeviceSpeedInfo(
 }
 
 data class UiState(
+    val interactiveCursorIndex: Int = 0,
     val currentTab: TabType = TabType.DASHBOARD,
     val config: RouterConfig? = null,
     val isConfiguring: Boolean = false, // True opens the configuration bottom sheet/dialog
@@ -200,9 +201,16 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
     private var isFirstLaunchVpnSyncDone = false
 
     private var interactiveShellLogId: Long? = null
-    private val interactiveShellOutputBuffer = StringBuilder()
-    private var interactiveShellJob: Job? = null
+    
     private var pendingEraseSkips = 0
+
+    fun addPendingEraseSkips(count: Int) {
+        pendingEraseSkips += count
+    }
+    
+    private val interactiveShellOutputBuffer = StringBuilder()
+    private var interactiveCursorIndex = 0
+    private var interactiveShellJob: Job? = null
 
     fun startInteractiveShellSession() {
         val config = _uiState.value.config ?: return
@@ -213,17 +221,15 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 repository.clearConsoleLogs()
                 _uiState.update { it.copy(commandOutput = "") }
 
+                interactiveCursorIndex = 0
                 interactiveShellOutputBuffer.setLength(0)
-                pendingEraseSkips = 0
-                val initialText = "Connecting to SSH interactive shell...\r\n"
+                                val initialText = "Connecting to SSH interactive shell...\r\n"
                 interactiveShellOutputBuffer.append(initialText)
                 val logId = repository.insertConsoleLog("sh", interactiveShellOutputBuffer.toString())
                 interactiveShellLogId = logId
 
                 repository.startInteractiveShell(config) { chunk ->
-                    val cleanedChunk = chunk.replace("]0;root@OpenWrt:", "")
-                        .replace("\u001b]0;root@OpenWrt:\u0007", "")
-                        .replace("\u001B]0;root@OpenWrt:\u0007", "")
+                    val cleanedChunk = chunk.replace(Regex("\\x1b?\\]0;.*?\\x07"), "")
                     
                     var i = 0
                     val len = cleanedChunk.length
@@ -236,32 +242,37 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                             if (isErasePattern) {
                                 if (pendingEraseSkips > 0) {
                                     pendingEraseSkips--
-                                } else {
-                                    if (interactiveShellOutputBuffer.isNotEmpty()) {
-                                        val lastChar = interactiveShellOutputBuffer.last()
-                                        val bytes = lastChar.toString().toByteArray(Charsets.UTF_8).size
-                                        if (bytes > 1) {
-                                            pendingEraseSkips += (bytes - 1)
-                                        }
-                                        interactiveShellOutputBuffer.setLength(interactiveShellOutputBuffer.length - 1)
-                                    }
+                                } else if (interactiveCursorIndex > 0) {
+                                    interactiveShellOutputBuffer.deleteCharAt(interactiveCursorIndex - 1)
+                                    interactiveCursorIndex--
                                 }
                                 i += 3
                             } else {
                                 if (pendingEraseSkips > 0) {
                                     pendingEraseSkips--
                                 } else {
-                                    if (interactiveShellOutputBuffer.isNotEmpty()) {
-                                        val lastChar = interactiveShellOutputBuffer.last()
-                                        val bytes = lastChar.toString().toByteArray(Charsets.UTF_8).size
-                                        if (bytes > 1) {
-                                            pendingEraseSkips += (bytes - 1)
-                                        }
-                                        interactiveShellOutputBuffer.setLength(interactiveShellOutputBuffer.length - 1)
-                                    }
+                                    interactiveCursorIndex = maxOf(0, interactiveCursorIndex - 1)
                                 }
                                 i++
                             }
+                        } else if (char == '\r') {
+                            val lastN = interactiveShellOutputBuffer.lastIndexOf("\n", interactiveCursorIndex - 1)
+                            interactiveCursorIndex = maxOf(0, lastN + 1)
+                            i++
+                        } else if (char == '\n') {
+                            if (interactiveCursorIndex == interactiveShellOutputBuffer.length) {
+                                interactiveShellOutputBuffer.append(char)
+                                interactiveCursorIndex++
+                            } else {
+                                val nextN = interactiveShellOutputBuffer.indexOf("\n", interactiveCursorIndex)
+                                if (nextN == -1) {
+                                    interactiveShellOutputBuffer.append(char)
+                                    interactiveCursorIndex = interactiveShellOutputBuffer.length
+                                } else {
+                                    interactiveCursorIndex = nextN + 1
+                                }
+                            }
+                            i++
                         } else if (char == '\u001b' || char == '\u001B') {
                             if (i + 1 < len && cleanedChunk[i + 1] == '[') {
                                 var j = i + 2
@@ -272,35 +283,105 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                                     val cmd = cleanedChunk[j]
                                     val seq = cleanedChunk.substring(i, j + 1)
                                     if (cmd == 'm') {
-                                        interactiveShellOutputBuffer.append(seq)
+                                        if (interactiveCursorIndex == interactiveShellOutputBuffer.length) {
+                                            interactiveShellOutputBuffer.append(seq)
+                                            interactiveCursorIndex += seq.length
+                                        } else {
+                                            interactiveShellOutputBuffer.insert(interactiveCursorIndex, seq)
+                                            interactiveCursorIndex += seq.length
+                                        }
                                     } else if (cmd == 'D') {
                                         val paramStr = cleanedChunk.substring(i + 2, j)
                                         val count = paramStr.toIntOrNull() ?: 1
-                                        for (k in 0 until count) {
-                                            if (interactiveShellOutputBuffer.isNotEmpty()) {
-                                                interactiveShellOutputBuffer.setLength(interactiveShellOutputBuffer.length - 1)
+                                        interactiveCursorIndex = maxOf(0, interactiveCursorIndex - count)
+                                    } else if (cmd == 'C') {
+                                        val paramStr = cleanedChunk.substring(i + 2, j)
+                                        val count = paramStr.toIntOrNull() ?: 1
+                                        interactiveCursorIndex = minOf(interactiveShellOutputBuffer.length, interactiveCursorIndex + count)
+                                    } else if (cmd == 'K') {
+                                        val paramStr = cleanedChunk.substring(i + 2, j)
+                                        if (paramStr.isEmpty() || paramStr == "0") {
+                                            val nextN = interactiveShellOutputBuffer.indexOf("\n", interactiveCursorIndex)
+                                            val endIdx = if (nextN == -1) interactiveShellOutputBuffer.length else nextN
+                                            if (endIdx > interactiveCursorIndex) {
+                                                interactiveShellOutputBuffer.delete(interactiveCursorIndex, endIdx)
+                                            }
+                                        } else if (paramStr == "1") {
+                                            val lastN = interactiveShellOutputBuffer.lastIndexOf("\n", interactiveCursorIndex - 1)
+                                            val startIdx = maxOf(0, lastN + 1)
+                                            if (interactiveCursorIndex > startIdx) {
+                                                interactiveShellOutputBuffer.delete(startIdx, interactiveCursorIndex)
+                                                interactiveCursorIndex = startIdx
+                                            }
+                                        } else if (paramStr == "2") {
+                                            val lastN = interactiveShellOutputBuffer.lastIndexOf("\n", interactiveCursorIndex - 1)
+                                            val startIdx = maxOf(0, lastN + 1)
+                                            val nextN = interactiveShellOutputBuffer.indexOf("\n", interactiveCursorIndex)
+                                            val endIdx = if (nextN == -1) interactiveShellOutputBuffer.length else nextN
+                                            if (endIdx > startIdx) {
+                                                interactiveShellOutputBuffer.delete(startIdx, endIdx)
+                                                interactiveCursorIndex = startIdx
                                             }
                                         }
+                                    } else if (cmd == 'J') {
+                                        val paramStr = cleanedChunk.substring(i + 2, j)
+                                        if (paramStr.isEmpty() || paramStr == "0") {
+                                            if (interactiveCursorIndex < interactiveShellOutputBuffer.length) {
+                                                interactiveShellOutputBuffer.delete(interactiveCursorIndex, interactiveShellOutputBuffer.length)
+                                            }
+                                        } else if (paramStr == "2") {
+                                            interactiveShellOutputBuffer.setLength(0)
+                                            interactiveCursorIndex = 0
+                                        }
+                                    } else if (cmd == 'A' || cmd == 'B' || cmd == 'G' || cmd == 'H' || cmd == 'f') {
+                                        // Ignore these vertical movements for now
+                                    } else if (cmd == 'P') { // Delete character
+                                        val paramStr = cleanedChunk.substring(i + 2, j)
+                                        val count = paramStr.toIntOrNull() ?: 1
+                                        val nextN = interactiveShellOutputBuffer.indexOf("\n", interactiveCursorIndex)
+                                        val endIdx = if (nextN == -1) interactiveShellOutputBuffer.length else nextN
+                                        val actualCount = minOf(count, endIdx - interactiveCursorIndex)
+                                        if (actualCount > 0) {
+                                            interactiveShellOutputBuffer.delete(interactiveCursorIndex, interactiveCursorIndex + actualCount)
+                                        }
                                     }
-                                    // For K, J, P, X, A, B, C, G, H, etc. we just ignore the sequence
                                     i = j + 1
                                 } else {
-                                    interactiveShellOutputBuffer.append(char)
+                                    if (interactiveCursorIndex == interactiveShellOutputBuffer.length) {
+                                        interactiveShellOutputBuffer.append(char)
+                                    } else {
+                                        interactiveShellOutputBuffer.setCharAt(interactiveCursorIndex, char)
+                                    }
+                                    interactiveCursorIndex++
                                     i++
                                 }
                             } else {
-                                interactiveShellOutputBuffer.append(char)
+                                if (interactiveCursorIndex == interactiveShellOutputBuffer.length) {
+                                    interactiveShellOutputBuffer.append(char)
+                                } else {
+                                    interactiveShellOutputBuffer.setCharAt(interactiveCursorIndex, char)
+                                }
+                                interactiveCursorIndex++
                                 i++
                             }
                         } else {
-                            interactiveShellOutputBuffer.append(char)
+                            if (interactiveCursorIndex == interactiveShellOutputBuffer.length) {
+                                interactiveShellOutputBuffer.append(char)
+                            } else {
+                                interactiveShellOutputBuffer.setCharAt(interactiveCursorIndex, char)
+                            }
+                            interactiveCursorIndex++
                             i++
                         }
                     }
-                    if (interactiveShellOutputBuffer.length > 50000) {
-                        interactiveShellOutputBuffer.delete(0, interactiveShellOutputBuffer.length - 50000)
+                    val currentLen = interactiveShellOutputBuffer.length
+                    if (currentLen > 50000) {
+                        val deletedCount = currentLen - 50000
+                        interactiveShellOutputBuffer.delete(0, deletedCount)
+                        interactiveCursorIndex = maxOf(0, interactiveCursorIndex - deletedCount)
                     }
                     viewModelScope.launch {
+                        _uiState.update { it.copy(interactiveCursorIndex = interactiveCursorIndex) }
                         interactiveShellLogId?.let { lid ->
                             repository.updateConsoleLog(lid, "sh", interactiveShellOutputBuffer.toString())
                         }
@@ -352,6 +433,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                         isInitialLoadComplete = true
                     ) 
                 }
+                val wasFirstEmission = isFirstEmission
                 isFirstEmission = false
                 if (config != null) {
                     // Start updates for this config
@@ -368,6 +450,9 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                             "vpn_on" -> toggleMasterVpn(true)
                             "vpn_off" -> toggleMasterVpn(false)
                         }
+                    }
+                    if (wasFirstEmission && _uiState.value.currentTab == TabType.CONSOLE && interactiveShellJob == null) {
+                        startInteractiveShellSession()
                     }
                 } else {
                     stopPollers()
@@ -751,15 +836,17 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
     // Manual status refresh triggered from the top-right button
     fun refreshStatus() {
         val config = _uiState.value.config ?: return
+        
+        _uiState.update { 
+            it.copy(
+                isStatusRefreshing = true,
+                vpnList = emptyList(),
+                tentativeVpnList = emptyList(),
+                status = it.status.copy()
+            ) 
+        }
+        
         viewModelScope.launch {
-            _uiState.update { 
-                it.copy(
-                    isStatusRefreshing = true,
-                    vpnList = emptyList(),
-                    tentativeVpnList = emptyList(),
-                    status = it.status.copy()
-                ) 
-            }
             try {
                 // Fetch interfaces with protos, openvpn services, and actual router status in parallel
                 val interfacesWithProtosDeferred = async { repository.fetchInterfacesWithProtos(config) }
@@ -792,23 +879,13 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 val addedOvpn = mutableSetOf<String>()
                 for (serviceName in availableOvpn) {
                     val sNameLower = serviceName.lowercase()
-                    val isRunning = freshStatus.isOpenVpnActive && (
-                        activeOvpnList.contains(sNameLower) ||
-                        freshStatus.openVpnInstanceName?.lowercase() == sNameLower ||
-                        (freshStatus.openVpnInstanceName.isNullOrEmpty() && config.openVpnService == serviceName)
-                    )
+                    val isRunning = freshStatus.isOpenVpnActive && activeOvpnList.contains(sNameLower)
                     val isChecked = isRunning
                     newVpnList.add(RouterVpnItem(name = serviceName, type = "OpenVPN", isRunning = isRunning, isChecked = isChecked))
                     addedOvpn.add(sNameLower)
                 }
                 
-                if (freshStatus.isOpenVpnActive) {
-                    for (activeOvpn in activeOvpnList) {
-                        if (!addedOvpn.contains(activeOvpn)) {
-                            newVpnList.add(RouterVpnItem(name = activeOvpn, type = "OpenVPN", isRunning = true, isChecked = true))
-                        }
-                    }
-                }
+
 
                 // 2. Interfaces (WireGuard and AmneziaWG)
                 val addedWg = mutableSetOf<String>()
@@ -820,11 +897,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                     addedWg.add(ifaceName)
                 }
                 
-                for (activeWg in activeWgList) {
-                    if (!addedWg.contains(activeWg)) {
-                        newVpnList.add(RouterVpnItem(name = activeWg, type = "WireGuard", isRunning = true, isChecked = true))
-                    }
-                }
+
 
                 if (!isFirstLaunchVpnSyncDone) {
                     isFirstLaunchVpnSyncDone = true
@@ -896,23 +969,13 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 val addedOvpn = mutableSetOf<String>()
                 for (serviceName in availableOvpn) {
                     val sNameLower = serviceName.lowercase()
-                    val isRunning = freshStatus.isOpenVpnActive && (
-                        activeOvpnList.contains(sNameLower) ||
-                        freshStatus.openVpnInstanceName?.lowercase() == sNameLower ||
-                        (freshStatus.openVpnInstanceName.isNullOrEmpty() && config.openVpnService == serviceName)
-                    )
+                    val isRunning = freshStatus.isOpenVpnActive && activeOvpnList.contains(sNameLower)
                     val isChecked = isRunning
                     newVpnList.add(RouterVpnItem(name = serviceName, type = "OpenVPN", isRunning = isRunning, isChecked = isChecked))
                     addedOvpn.add(sNameLower)
                 }
                 
-                if (freshStatus.isOpenVpnActive) {
-                    for (activeOvpn in activeOvpnList) {
-                        if (!addedOvpn.contains(activeOvpn)) {
-                            newVpnList.add(RouterVpnItem(name = activeOvpn, type = "OpenVPN", isRunning = true, isChecked = true))
-                        }
-                    }
-                }
+
 
                 // 2. Interfaces (WireGuard and AmneziaWG)
                 val addedWg = mutableSetOf<String>()
@@ -924,11 +987,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                     addedWg.add(ifaceName)
                 }
                 
-                for (activeWg in activeWgList) {
-                    if (!addedWg.contains(activeWg)) {
-                        newVpnList.add(RouterVpnItem(name = activeWg, type = "WireGuard", isRunning = true, isChecked = true))
-                    }
-                }
+
 
                 _uiState.update { 
                     it.copy(
