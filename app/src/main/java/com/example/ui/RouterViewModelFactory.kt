@@ -12,7 +12,7 @@ class RouterViewModelFactory(private val application: Application) : ViewModelPr
         if (modelClass.isAssignableFrom(RouterViewModel::class.java)) {
             val database = RouterDatabase.getDatabase(application)
             val dao = database.routerDao()
-            val sshClientManager = SshClientManager()
+            val sshClientManager = SshClientManager(application)
             val repository = RouterRepository(application, dao, sshClientManager)
             @Suppress("UNCHECKED_CAST")
             return RouterViewModel(repository, application) as T

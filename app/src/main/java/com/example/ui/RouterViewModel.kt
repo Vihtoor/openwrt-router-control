@@ -388,6 +388,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                     }
                 }
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 Log.e("RouterViewModel", "Error starting interactive shell: ${e.message}")
                 interactiveShellOutputBuffer.append("\nError starting shell: ${e.message}\n")
                 interactiveShellLogId?.let { lid ->
@@ -407,6 +408,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
             try {
                 repository.stopInteractiveShell()
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 Log.e("RouterViewModel", "Error stopping interactive shell: ${e.message}")
             }
         }
@@ -434,6 +436,9 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                     ) 
                 }
                 val wasFirstEmission = isFirstEmission
+                if (isFirstEmission) {
+                    _uiState.update { it.copy(status = RouterStatus(), vpnList = emptyList(), tentativeVpnList = emptyList()) }
+                }
                 isFirstEmission = false
                 if (config != null) {
                     // Start updates for this config
@@ -581,6 +586,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 kotlinx.coroutines.delay(2000)
                 refreshStatus()
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 _uiState.update {
                     it.copy(
                         connectionError = "Failed to set DNS: ${e.message}",
@@ -591,7 +597,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
         }
     }
     
-    fun testConnection(ip: String, port: Int, user: String, pass: String) {
+    fun testConnection(ip: String, port: Int, user: String, pass: String, sshKeyId: Long? = null) {
         viewModelScope.launch {
             _uiState.update { it.copy(isConnecting = true, connectionError = null) }
             val cleanedIp = cleanHost(ip)
@@ -599,7 +605,8 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 ipAddress = cleanedIp,
                 port = port,
                 username = user.trim(),
-                sshKeyOrPassword = pass
+                sshKeyOrPassword = pass,
+                sshKeyId = sshKeyId
             )
             val success = repository.testConnection(tempConfig)
             if (success) {
@@ -630,7 +637,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
     }
 
     // Save configuration and close dialog
-    fun saveConfig(id: Int, profileName: String, ip: String, port: Int, user: String, pass: String, ledBehavior: String, wgInterface: String) {
+    fun saveConfig(id: Int, profileName: String, ip: String, port: Int, user: String, pass: String, ledBehavior: String, wgInterface: String, sshKeyId: Long? = null) {
         viewModelScope.launch {
             val cleanedIp = cleanHost(ip)
             val finalConfig = RouterConfig(
@@ -640,6 +647,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 port = port,
                 username = user.trim(),
                 sshKeyOrPassword = pass,
+                sshKeyId = sshKeyId,
                 ledBehavior = ledBehavior,
                 wgInterface = wgInterface,
                 isActive = true
@@ -714,6 +722,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                         )
                     }
                 } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                     _uiState.update {
                         it.copy(
                             openVpnTransition = null,
@@ -785,6 +794,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                         )
                     }
                 } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                     _uiState.update {
                         it.copy(
                             wireguardTransition = null,
@@ -927,6 +937,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                     }
                 }
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 Log.e("RouterViewModel", "Error in refreshStatus: ${e.message}", e)
                 _uiState.update { it.copy(isStatusRefreshing = false) }
             }
@@ -999,6 +1010,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                     ) 
                 }
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 Log.e("RouterViewModel", "Error in openVpnListDialog fetch: ${e.message}", e)
             }
         }
@@ -1058,6 +1070,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                         repository.executeConsoleCommand(config, combinedCommand, saveToLog = false)
                         delay(1200)
                     } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                         Log.e("RouterViewModel", "Failed to apply VPN changes: ${e.message}")
                     }
                 }
@@ -1118,6 +1131,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                     repository.executeConsoleCommand(config, combinedCmd, saveToLog = false)
                     delay(1200)
                 } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                     Log.e("RouterViewModel", "Failed to toggle master VPN: ${e.message}")
                 }
             }
@@ -1171,6 +1185,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 }
                 refreshStatus()
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 _uiState.update {
                     it.copy(
                         openVpnTransition = null,
@@ -1224,6 +1239,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 }
                 refreshStatus()
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 _uiState.update {
                     it.copy(
                         openVpnTransition = null,
@@ -1267,6 +1283,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 }
                 refreshStatus()
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 _uiState.update {
                     it.copy(
                         openVpnTransition = null,
@@ -1294,6 +1311,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
             try {
                 repository.setLedStatus(config, enable)
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 // Keep the optimistic state as instructed
             }
         }
@@ -1408,6 +1426,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
             try {
                 repository.rebootRouter(config)
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 // If reboot command failed immediately (e.g., connection lost), we still proceed to poll
             }
             
@@ -1415,6 +1434,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
             try {
                 repository.disconnect()
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                 // ignore
             }
             
@@ -1443,7 +1463,9 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
         speedJob = viewModelScope.launch {
             while (isActive) {
                 try {
-                    val telemetry = repository.queryWanTrafficBytes(config)
+                    val currentConfig = _uiState.value.config ?: config
+                    android.util.Log.d("SSH-Poller", "RouterViewModel speedJob polling: config.sshKeyId=${currentConfig.sshKeyId}")
+                    val telemetry = repository.queryWanTrafficBytes(currentConfig)
                     val rxBytes = telemetry.rxBytes
                     val txBytes = telemetry.txBytes
                     val nowBytesTime = System.currentTimeMillis()
@@ -1495,6 +1517,7 @@ class RouterViewModel(private val repository: RouterRepository, private val appl
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterViewModel", e)
                     // Ignore transient errors
                 }
                 delay(2000)

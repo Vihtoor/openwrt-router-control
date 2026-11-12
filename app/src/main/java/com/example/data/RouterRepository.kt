@@ -143,6 +143,7 @@ class RouterRepository(
             dao.saveRouterConfig(updatedConfig)
             updatedConfig
         } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.checkAndSaveRouterCapabilities", e)
             Log.e("RouterRepository", "Failed to check router capabilities: ${e.message}", e)
             config
         }
@@ -203,6 +204,7 @@ class RouterRepository(
                 val result = sshClientManager.executeCommand(config, command, timeout)
                 result.fullOutput()
             } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.executeConsoleCommand", e)
                 "Error: ${e.message}"
             }
         }
@@ -216,6 +218,7 @@ class RouterRepository(
             updateConsoleLog(logId, command, fullOut)
             fullOut
         } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.executeConsoleCommand", e)
             val errorOut = "Error: ${e.message}"
             updateConsoleLog(logId, command, errorOut)
             errorOut
@@ -340,7 +343,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
                             break
                         }
                     } catch (retryEx: Exception) {
-                        Log.e("RouterRepository", "Retry $attempt to fetch IP info failed: ${retryEx.message}")
+                        Log.e("RouterRepository", "Retry $attempt to fetch IP info failed: ${retryEx.message}") /* PATCHED */
                     }
                 }
             }
@@ -365,6 +368,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
                 isCustomDns = isCustomDns
             )
         } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.queryRouterStatus", e)
             Log.e("RouterRepository", "Failed to query status in combined mode: ${e.message}", e)
             try {
                 // Minimal quick fallback if combined query throws exception
@@ -417,6 +421,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
             val info = parseIpInfo(res.stdout)
             info.first
         } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.queryPublicIpOnly", e)
             "Offline / Error"
         }
     }
@@ -517,6 +522,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
             }
             enabledServices.distinct().sorted()
         } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.fetchEnabledOpenVpnServices", e)
             Log.e("RouterRepository", "Failed to fetch enabled OpenVPN services: ${e.message}", e)
             emptyList()
         }
@@ -615,6 +621,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
             
             finalResult.distinct().sorted()
         } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.fetchRouterInterfaces", e)
             Log.e("RouterRepository", "Failed to fetch router interfaces: ${e.message}", e)
             emptyList()
         }
@@ -637,6 +644,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
             }
             protoMap
         } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.fetchInterfacesWithProtos", e)
             Log.e("RouterRepository", "Failed to fetch interfaces with protocols: ${e.message}", e)
             emptyMap()
         }
@@ -802,6 +810,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
             )
 
         } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.queryWanTrafficBytes", e)
             TrafficAndTelemetry()
         }
     }
@@ -1249,6 +1258,7 @@ private fun isValidOpenVpnProcessLine(line: String): Boolean {
             val location = listOf(city, region, country).filter { it.isNotEmpty() }.joinToString(", ")
             Triple(ip, if (location.isEmpty()) "Unknown" else location, org)
         } catch (e: Exception) {
+            android.util.Log.e("SSH-Debug", "Caught exception in RouterRepository.parseIpInfo", e)
             Triple("Unknown", "Unknown", "Unknown")
         }
     }

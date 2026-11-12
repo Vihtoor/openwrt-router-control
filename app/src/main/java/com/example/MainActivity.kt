@@ -1,6 +1,8 @@
 package com.example
 import androidx.compose.ui.res.stringResource
 
+import java.security.Security
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,6 +16,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -70,7 +74,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -271,6 +277,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        try {
+            Security.removeProvider("BC")
+            Security.insertProviderAt(BouncyCastleProvider(), 1)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         enableEdgeToEdge()
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -387,7 +399,15 @@ fun MainScreen(viewModel: RouterViewModel) {
                     Text(translateText("Найдена новая версия:", context) + " ${info.version}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     val scrollState = androidx.compose.foundation.rememberScrollState()
-                    Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(scrollState)) {
+                    val interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    
+                    androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f, fill = false)) {
+                        Column(modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(end = 8.dp)
+                            .verticalScroll(scrollState)
+                            .focusable(interactionSource = interactionSource)
+                        ) {
                             Text(info.releaseNotes, style = MaterialTheme.typography.bodyMedium)
                             Spacer(modifier = Modifier.height(8.dp))
                             val downloadText = "- " + translateText("Скачать обновление вы можете вручную с https://github.com/Vihtoor/openwrt-router-control/releases", context)
@@ -423,6 +443,27 @@ fun MainScreen(viewModel: RouterViewModel) {
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("- " + translateText("Проверить обновление можно вручную в разделе настроек О приложении", context), style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                        }
+                        
+                        val showScrollbar = scrollState.maxValue > 0
+                        if (showScrollbar) {
+                            val fraction = if (scrollState.maxValue == 0) 0f else scrollState.value.toFloat() / scrollState.maxValue
+                            androidx.compose.foundation.Canvas(modifier = Modifier.align(Alignment.CenterEnd).width(4.dp).fillMaxHeight()) {
+                                drawRoundRect(
+                                    color = androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.3f),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+                                )
+                                val thumbHeight = 40.dp.toPx()
+                                val maxThumbOffset = size.height - thumbHeight
+                                val thumbOffset = fraction * maxThumbOffset
+                                drawRoundRect(
+                                    color = androidx.compose.ui.graphics.Color.Gray,
+                                    topLeft = androidx.compose.ui.geometry.Offset(0f, thumbOffset),
+                                    size = androidx.compose.ui.geometry.Size(size.width, thumbHeight),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+                                )
+                            }
+                        }
                     }
                 }
             },
@@ -619,7 +660,7 @@ fun MainScreen(viewModel: RouterViewModel) {
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Settings,
-                                    contentDescription = "Настройки",
+                                    contentDescription = stringResource(R.string.action_settings),
                                     modifier = Modifier.size(26.dp)
                                 )
                             }
@@ -669,13 +710,13 @@ fun MainScreen(viewModel: RouterViewModel) {
                         icon = { 
                             Icon(
                                 imageVector = Icons.Default.Home, 
-                                contentDescription = "Главная",
+                                contentDescription = stringResource(R.string.tab_main_dashboard),
                                 modifier = Modifier.size(if (isDashboardActive) 22.dp else 20.dp)
                             ) 
                         },
                         label = { 
                             Text(
-                                text = "Главная",
+                                text = stringResource(R.string.tab_main_dashboard),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.sp,
                                     fontWeight = if (isDashboardActive) FontWeight.Bold else FontWeight.Normal
@@ -702,13 +743,13 @@ fun MainScreen(viewModel: RouterViewModel) {
                         icon = { 
                             Icon(
                                 imageVector = TerminalIcon, 
-                                contentDescription = "Консоль",
+                                contentDescription = stringResource(R.string.tab_console),
                                 modifier = Modifier.size(if (isConsoleActive) 22.dp else 20.dp)
                             ) 
                         },
                         label = { 
                             Text(
-                                text = "Консоль",
+                                text = stringResource(R.string.tab_console),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.sp,
                                     fontWeight = if (isConsoleActive) FontWeight.Bold else FontWeight.Normal
@@ -735,13 +776,13 @@ fun MainScreen(viewModel: RouterViewModel) {
                         icon = { 
                             Icon(
                                 imageVector = Icons.Default.Build, 
-                                contentDescription = "Инструменты",
+                                contentDescription = stringResource(R.string.tab_tools),
                                 modifier = Modifier.size(if (isTestActive) 22.dp else 20.dp)
                             ) 
                         },
                         label = { 
                             Text(
-                                text = "Инструменты",
+                                text = stringResource(R.string.tab_tools),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.sp,
                                     fontWeight = if (isTestActive) FontWeight.Bold else FontWeight.Normal
@@ -780,13 +821,13 @@ fun MainScreen(viewModel: RouterViewModel) {
                         icon = { 
                             Icon(
                                 imageVector = Icons.Default.Refresh, 
-                                contentDescription = "Перезагрузка",
+                                contentDescription = stringResource(R.string.tab_reboot),
                                 modifier = Modifier.size(if (isRebootActive) 22.dp else 20.dp)
                             ) 
                         },
                         label = { 
                             Text(
-                                text = "Перезапуск",
+                                text = stringResource(R.string.action_restart),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.sp,
                                     fontWeight = if (isRebootActive) FontWeight.Bold else FontWeight.Normal
@@ -865,7 +906,7 @@ fun MainScreen(viewModel: RouterViewModel) {
                                 viewModel.toggleTentativeVpnItem(name, checked)
                             },
                             onApplyVpnChanges = {
-                                android.widget.Toast.makeText(context, translateText("Применение изменений...", context), android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, context.getString(R.string.msg_applying_changes), android.widget.Toast.LENGTH_SHORT).show()
                                 viewModel.applyVpnListChanges(isTv)
                             },
                             onCancelVpnChanges = {
@@ -921,8 +962,8 @@ fun MainScreen(viewModel: RouterViewModel) {
             if (showRebootConfirm) {
                 AlertDialog(
                     onDismissRequest = { showRebootConfirm = false },
-                    title = { Text("Перезагрузка роутера") },
-                    text = { Text("Вы уверены, что хотите перезагрузить роутер? Это временно прервет сетевое соединение.") },
+                    title = { Text(stringResource(R.string.dialog_reboot_title)) },
+                    text = { Text(stringResource(R.string.dialog_reboot_msg)) },
                     confirmButton = {
                         Button(
                             onClick = {
@@ -932,7 +973,7 @@ fun MainScreen(viewModel: RouterViewModel) {
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                         ) {
-                            Text("Перезагрузить")
+                            Text(stringResource(R.string.action_reboot))
                         }
                     },
                     dismissButton = {
@@ -1003,7 +1044,7 @@ fun InternetStatusCard(state: UiState, modifier: Modifier = Modifier, onRefreshS
             ) {
                 // IP Field
                 StatusRow(
-                    label = "Публичный IP",
+                    label = stringResource(R.string.label_public_ip),
                     value = state.status.publicIp,
                     iconColor = MaterialTheme.colorScheme.primary,
                     imageVector = Icons.Default.Info,
@@ -1014,7 +1055,7 @@ fun InternetStatusCard(state: UiState, modifier: Modifier = Modifier, onRefreshS
 
                 // Location Field
                 StatusRow(
-                    label = "Локация",
+                    label = stringResource(R.string.label_location),
                     value = state.status.location,
                     iconColor = MaterialTheme.colorScheme.tertiary,
                     imageVector = Icons.Default.Home,
@@ -1025,7 +1066,7 @@ fun InternetStatusCard(state: UiState, modifier: Modifier = Modifier, onRefreshS
 
                 // ISP Provider Field
                 StatusRow(
-                    label = "Провайдер",
+                    label = stringResource(R.string.label_isp),
                     value = state.status.provider,
                     iconColor = MaterialTheme.colorScheme.secondary,
                     imageVector = Icons.Default.Info,
@@ -1066,7 +1107,7 @@ fun InternetStatusCard(state: UiState, modifier: Modifier = Modifier, onRefreshS
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "Обновить статус",
+                        contentDescription = stringResource(R.string.action_refresh_status),
                         modifier = Modifier.size(26.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1143,7 +1184,7 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier, onNavigateToCo
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Загрузка ↓",
+                            text = stringResource(R.string.download_arrow),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1189,7 +1230,7 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier, onNavigateToCo
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (showTemperature) translateText("Температура", androidx.compose.ui.platform.LocalContext.current) else translateText("Процессор", androidx.compose.ui.platform.LocalContext.current),
+                                    text = if (showTemperature) androidx.compose.ui.platform.LocalContext.current.getString(R.string.label_temperature) else androidx.compose.ui.platform.LocalContext.current.getString(R.string.label_cpu),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1197,7 +1238,7 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier, onNavigateToCo
                             if (showTemperature) {
                                 if (state.cpuTemperature == null) {
                                     Text(
-                                        text = translateText("недоступна", androidx.compose.ui.platform.LocalContext.current),
+                                        text = androidx.compose.ui.platform.LocalContext.current.getString(R.string.msg_unavailable),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1235,7 +1276,7 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier, onNavigateToCo
                         // Memory
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "ОЗУ",
+                                text = stringResource(R.string.label_ram),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1256,7 +1297,7 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier, onNavigateToCo
                         // Uptime
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "Аптайм",
+                                text = stringResource(R.string.uptime),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1280,7 +1321,7 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier, onNavigateToCo
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "ЦП",
+                                text = stringResource(R.string.label_cpu_short),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1313,7 +1354,7 @@ fun SpeedMeterCard(state: UiState, modifier: Modifier = Modifier, onNavigateToCo
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Выгрузка ↑",
+                            text = stringResource(R.string.upload_arrow),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1530,7 +1571,7 @@ fun TogglesCard(state: UiState,
                     ) {
                         Icon(
                             imageVector = androidx.compose.material.icons.Icons.Default.List,
-                            contentDescription = "Список соединений",
+                            contentDescription = stringResource(R.string.label_connections_list),
                             tint = if (isVpnListFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
@@ -1549,7 +1590,7 @@ fun TogglesCard(state: UiState,
                     ) {
                         if (gettingDataFromRouter) {
                             Text(
-                                text = translateText("Получение данных от роутера...", context),
+                                text = context.getString(R.string.msg_getting_data_router),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
@@ -1599,7 +1640,7 @@ fun TogglesCard(state: UiState,
                                                     }
                                                     Spacer(modifier = Modifier.width(6.dp))
                                                     Text(
-                                                        text = "${item.name} (${item.type}) - ${translateText("Активен", context)}",
+                                                        text = "${item.name} (${item.type}) - ${context.getString(R.string.status_active)}",
                                                         style = if (isTv) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
                                                         color = MaterialTheme.colorScheme.primary,
                                                         fontWeight = FontWeight.Medium
@@ -1686,7 +1727,7 @@ fun TogglesCard(state: UiState,
                                                         }
                                                         Spacer(modifier = Modifier.width(6.dp))
                                                         Text(
-                                                            text = "${item.name} (${item.type}) - ${translateText("Активен", context)}",
+                                                            text = "${item.name} (${item.type}) - ${context.getString(R.string.status_active)}",
                                                             style = if (isTv) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
                                                             color = MaterialTheme.colorScheme.primary,
                                                             fontWeight = FontWeight.Medium
@@ -1722,7 +1763,7 @@ fun TogglesCard(state: UiState,
                                         ) {}
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = "Нет активных VPN соединений",
+                                            text = stringResource(R.string.msg_no_active_vpn),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -1731,7 +1772,7 @@ fun TogglesCard(state: UiState,
                             }
                         } else {
                             Text(
-                                text = "Все VPN отключены",
+                                text = stringResource(R.string.all_vpn_disabled),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1815,7 +1856,7 @@ fun TogglesCard(state: UiState,
                     ) {
                         Icon(
                             imageVector = androidx.compose.material.icons.Icons.Default.Settings,
-                            contentDescription = "Выбор DNS",
+                            contentDescription = stringResource(R.string.dns_selection),
                             tint = if (isDnsListFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
@@ -1832,9 +1873,9 @@ fun TogglesCard(state: UiState,
                         contentAlignment = Alignment.CenterStart
                     ) {
                         val dnsText = if (state.isStatusRefreshing) {
-                            translateText("Получение данных...", context)
+                            context.getString(R.string.msg_getting_data)
                         } else if (!state.status.isCustomDns) {
-                            translateText("По умолчанию (Провайдер)", context)
+                            context.getString(R.string.dns_default_isp)
                         } else {
                             val currentIps = state.status.dnsServers.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                             var matchedProvider: com.example.ui.DnsProvider? = null
@@ -1855,7 +1896,7 @@ fun TogglesCard(state: UiState,
                                 val unmatchedIps = currentIps.filter { it !in matchedVariant.servers }
                                 val baseName = "${matchedProvider.name}: ${matchedVariant.name}"
                                 if (unmatchedIps.isNotEmpty()) {
-                                    "$baseName, ${translateText("дополнительно", context)} ${unmatchedIps.joinToString(", ")}"
+                                    "$baseName, ${context.getString(R.string.label_additional)} ${unmatchedIps.joinToString(", ")}"
                                 } else {
                                     baseName
                                 }
@@ -1935,8 +1976,8 @@ fun TogglesCard(state: UiState,
             ) {
                 Box(modifier = Modifier.padding(8.dp)) {
                     ToggleRow(
-                        title = "Светодиод роутера",
-                        subtitle = state.ledTransition ?: if (state.status.isLedActive) "Включен" else "Выключен",
+                        title = stringResource(R.string.title_router_led),
+                        subtitle = state.ledTransition ?: if (state.status.isLedActive) stringResource(R.string.status_on) else stringResource(R.string.status_off),
                         isActive = state.status.isLedActive,
                         icon = androidx.compose.material.icons.Icons.Default.Star,
                         onToggle = onLedToggle,
@@ -1955,7 +1996,7 @@ fun TogglesCard(state: UiState,
             onDismissRequest = { onCancelVpnChanges() },
             title = {
                 Text(
-                    text = "Доступные VPN. Выберите те, которые должны быть включены",
+                    text = stringResource(R.string.msg_available_vpn_desc),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -1970,7 +2011,7 @@ fun TogglesCard(state: UiState,
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = translateText("Получение данных от роутера...", context),
+                            text = context.getString(R.string.msg_getting_data_router),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
@@ -2041,7 +2082,7 @@ fun TogglesCard(state: UiState,
                     modifier = Modifier.testTag("vpn_dialog_apply"),
                     enabled = state.tentativeVpnList.isNotEmpty()
                 ) {
-                    Text("Применить")
+                    Text(stringResource(R.string.action_apply))
                 }
             },
         )
@@ -2065,8 +2106,8 @@ fun TogglesCard(state: UiState,
         if (showConfirmationDialog && selectedVariant != null) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showConfirmationDialog = false },
-                title = { Text(translateText("Подтверждение DNS", context)) },
-                text = { Text(translateText("Установить %s в качестве DNS сервера?", context).format(selectedVariant!!.name)) },
+                title = { Text(context.getString(R.string.dialog_dns_confirm_title)) },
+                text = { Text(context.getString(R.string.msg_set_dns_confirm).format(selectedVariant!!.name)) },
                 confirmButton = {
                     androidx.compose.material3.Button(onClick = {
                         if (selectedVariant!!.id == "isp") {
@@ -2089,7 +2130,7 @@ fun TogglesCard(state: UiState,
                             }
                         }
                     }) {
-                        Text(translateText("Подтвердить", context))
+                        Text(context.getString(R.string.action_confirm))
                     }
                 },
                 dismissButton = {
@@ -2104,8 +2145,8 @@ fun TogglesCard(state: UiState,
         if (showAddExtraDnsAskDialog && selectedVariant != null) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showAddExtraDnsAskDialog = false },
-                title = { Text(translateText("Дополнительный DNS", context)) },
-                text = { Text(translateText("Желаете ли вы добавить дополнительный DNS?", context)) },
+                title = { Text(context.getString(R.string.additional_dns)) },
+                text = { Text(context.getString(R.string.msg_want_additional_dns)) },
                 confirmButton = {
                     androidx.compose.material3.Button(onClick = {
                         showAddExtraDnsAskDialog = false
@@ -2120,7 +2161,7 @@ fun TogglesCard(state: UiState,
                         showAddExtraDnsAskDialog = false
                         onCancelDnsChanges()
                     }) {
-                        Text(translateText("Нет", context))
+                        Text(context.getString(R.string.action_no))
                     }
                 }
             )
@@ -2130,8 +2171,8 @@ fun TogglesCard(state: UiState,
         if (showAddPublicDnsAskDialog && selectedVariant != null) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showAddPublicDnsAskDialog = false },
-                title = { Text(translateText("Дополнительный DNS", context)) },
-                text = { Text(translateText("Желаете ли вы добавить один из публичных DNS?", context)) },
+                title = { Text(context.getString(R.string.additional_dns)) },
+                text = { Text(context.getString(R.string.msg_want_public_dns)) },
                 confirmButton = {
                     androidx.compose.material3.Button(onClick = {
                         pendingCustomDns = selectedVariant!!.servers
@@ -2147,7 +2188,7 @@ fun TogglesCard(state: UiState,
                         showAddPublicDnsAskDialog = false
                         onCancelDnsChanges()
                     }) {
-                        Text(translateText("Нет", context))
+                        Text(context.getString(R.string.action_no))
                     }
                 }
             )
@@ -2156,11 +2197,11 @@ fun TogglesCard(state: UiState,
         if (showAdditionalDnsInputDialog && selectedVariant != null) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showAdditionalDnsInputDialog = false },
-                title = { Text(translateText("Дополнительный DNS", context)) },
+                title = { Text(context.getString(R.string.additional_dns)) },
                 text = {
                     Column {
                         Text(
-                            text = translateText("Добавьте один или несколько IP, разделяя их запятыми", context),
+                            text = context.getString(R.string.msg_add_ips_comma),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -2187,7 +2228,7 @@ fun TogglesCard(state: UiState,
                         showAdditionalDnsInputDialog = false
                         onCancelDnsChanges()
                     }) {
-                        Text(translateText("Добавить", context))
+                        Text(context.getString(R.string.action_add))
                     }
                 },
                 dismissButton = {
@@ -2211,7 +2252,7 @@ fun TogglesCard(state: UiState,
                             .padding(horizontal = 24.dp, vertical = 14.dp)
                     ) {
                         Text(
-                            text = translateText("Выберите DNS для использования на роутере.", context),
+                            text = context.getString(R.string.msg_select_dns),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontSize = 12.sp, 
                                 lineHeight = 18.sp
@@ -2274,7 +2315,7 @@ fun TogglesCard(state: UiState,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = translateText("По умолчанию (Провайдер)", context),
+                                        text = context.getString(R.string.dns_default_isp),
                                         modifier = Modifier.weight(1f),
                                         color = if (isIspActive) Color(0xFF4CAF50).copy(alpha = alpha) else MaterialTheme.colorScheme.onSurface,
                                         fontWeight = if (isIspActive) FontWeight.Bold else FontWeight.Normal
@@ -2314,7 +2355,7 @@ fun TogglesCard(state: UiState,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = translateText("Пользовательский DNS", context),
+                                            text = context.getString(R.string.dns_custom),
                                             modifier = Modifier.weight(1f),
                                             color = if (isUnknownCustom) Color(0xFF4CAF50).copy(alpha = alpha) else MaterialTheme.colorScheme.onSurface,
                                             fontWeight = if (isUnknownCustom) FontWeight.Bold else FontWeight.Normal
@@ -2333,7 +2374,7 @@ fun TogglesCard(state: UiState,
                                             androidx.compose.material3.OutlinedTextField(
                                                 value = customDnsInput,
                                                 onValueChange = { customDnsInput = it },
-                                                label = { Text(translateText("IP адрес DNS сервера", context)) },
+                                                label = { Text(context.getString(R.string.dns_ip_address)) },
                                                 singleLine = true,
                                                 modifier = Modifier.fillMaxWidth().padding(end = 18.dp),
                                                 textStyle = MaterialTheme.typography.bodyMedium
@@ -2350,7 +2391,7 @@ fun TogglesCard(state: UiState,
                                                 },
                                                 modifier = Modifier.align(Alignment.End).padding(end = 18.dp)
                                             ) {
-                                                Text(translateText("Задать", context))
+                                                Text(context.getString(R.string.action_set))
                                             }
                                         }
                                     }
@@ -2498,6 +2539,12 @@ fun TogglesCard(state: UiState,
 
 @Composable
 fun TelemetryCard(state: UiState, modifier: Modifier = Modifier) {
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTablet = remember(configuration) { configuration.screenWidthDp >= 600 }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val isTv = remember { context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) }
+    val isSmartphone = !isTv && !isTablet
+
     var showTemperature by remember { mutableStateOf(false) }
     LaunchedEffect(state.speedHistory.lastOrNull()?.timestamp) {
         showTemperature = !showTemperature
@@ -2515,7 +2562,7 @@ fun TelemetryCard(state: UiState, modifier: Modifier = Modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = if (isSmartphone) 8.dp else 16.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -2525,14 +2572,14 @@ fun TelemetryCard(state: UiState, modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = if (showTemperature) translateText("Температура", androidx.compose.ui.platform.LocalContext.current) else translateText("Процессор", androidx.compose.ui.platform.LocalContext.current),
+                    text = if (showTemperature) androidx.compose.ui.platform.LocalContext.current.getString(R.string.label_temperature) else androidx.compose.ui.platform.LocalContext.current.getString(R.string.label_cpu),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (showTemperature) {
                     if (state.cpuTemperature == null) {
                         Text(
-                            text = translateText("недоступна", androidx.compose.ui.platform.LocalContext.current),
+                            text = androidx.compose.ui.platform.LocalContext.current.getString(R.string.msg_unavailable),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -2576,7 +2623,7 @@ fun TelemetryCard(state: UiState, modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "ОЗУ",
+                    text = stringResource(R.string.label_ram),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -2602,7 +2649,7 @@ fun TelemetryCard(state: UiState, modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Аптайм",
+                    text = stringResource(R.string.uptime),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -2861,8 +2908,8 @@ fun ToggleRow(
                         MaterialTheme.typography.bodySmall
                     },
                     color = when {
-                        subtitle.startsWith("Включение") || subtitle.startsWith("Выключение") || subtitle.startsWith("Переключение") -> Color(0xFFFF9500)
-                        isActive && title != "Светодиод роутера" -> greenColor
+                        subtitle.startsWith(stringResource(R.string.status_enabling).removeSuffix("...")) || subtitle.startsWith(stringResource(R.string.status_disabling).removeSuffix("...")) || subtitle.startsWith(stringResource(R.string.status_switching).removeSuffix("...")) -> Color(0xFFFF9500)
+                        isActive && title != stringResource(R.string.title_router_led) -> greenColor
                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 )
@@ -2894,7 +2941,7 @@ fun SpeedChart(history: List<SpeedSnapshot>, modifier: Modifier = Modifier) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Ожидание данных трафика...",
+                text = stringResource(R.string.msg_waiting_traffic),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
@@ -3355,12 +3402,12 @@ fun ConsoleTab(
     if (showAddFavoriteDialog) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showAddFavoriteDialog = false },
-            title = { Text(text = translateText("Добавить в избранное", context), color = Color.White) },
+            title = { Text(text = context.getString(R.string.action_add_favorite), color = Color.White) },
             text = {
                 androidx.compose.material3.OutlinedTextField(
                     value = newFavoriteText,
                     onValueChange = { newFavoriteText = it },
-                    label = { Text(translateText("Команда", context)) },
+                    label = { Text(context.getString(R.string.label_command)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -3384,7 +3431,7 @@ fun ConsoleTab(
                         showAddFavoriteDialog = false
                     }
                 ) {
-                    Text(translateText("Добавить", context))
+                    Text(context.getString(R.string.action_add))
                 }
             },
             dismissButton = {
@@ -3410,7 +3457,7 @@ fun ConsoleTab(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = translateText("SSH терминал", context),
+                text = context.getString(R.string.ssh_terminal),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -3479,7 +3526,7 @@ fun ConsoleTab(
                 }
                 var isCopyBtnFocused by remember { mutableStateOf(false) }
                 val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-                val copySuccessMsg = translateText("Текст скопирован в буфер обмена", context)
+                val copySuccessMsg = context.getString(R.string.msg_text_copied)
                 IconButton(
                     onClick = {
                         val allText = consoleHistory.asReversed().joinToString("\n\n") { log ->
@@ -3506,7 +3553,7 @@ fun ConsoleTab(
                 ) {
                     Icon(
                         imageVector = CopyIcon,
-                        contentDescription = translateText("Копировать", context),
+                        contentDescription = context.getString(R.string.action_copy),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -3565,7 +3612,7 @@ fun ConsoleTab(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = translateText("Очистить логи", context),
+                        contentDescription = context.getString(R.string.action_clear_logs),
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
@@ -4854,7 +4901,7 @@ fun IPerfFullScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Назад",
+                        contentDescription = stringResource(R.string.action_back),
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
@@ -4969,7 +5016,7 @@ fun IPerfFullScreen(
                                 ) {
                                     Icon(
                                         imageVector = CopyIcon,
-                                        contentDescription = "Копировать",
+                                        contentDescription = stringResource(R.string.action_copy),
                                         tint = Color.White.copy(alpha = 0.6f),
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -4993,7 +5040,7 @@ fun IPerfFullScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
-                                        contentDescription = "Очистить консоль",
+                                        contentDescription = stringResource(R.string.action_clear_console),
                                         tint = Color.White.copy(alpha = 0.6f),
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -5229,7 +5276,7 @@ fun IPerfFullScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.KeyboardArrowUp,
-                                        contentDescription = "Предыдущая команда",
+                                        contentDescription = stringResource(R.string.action_prev_command),
                                         tint = Color.White.copy(alpha = 0.6f),
                                         modifier = Modifier.size(22.dp)
                                     )
@@ -5415,7 +5462,7 @@ fun IPerfFullScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Send,
-                                    contentDescription = "Отправить"
+                                    contentDescription = stringResource(R.string.action_send)
                                 )
                             }
                         }
@@ -5524,7 +5571,7 @@ fun IPerfFullScreen(
                                 ) {
                                     Icon(
                                         imageVector = CopyIcon,
-                                        contentDescription = "Копировать",
+                                        contentDescription = stringResource(R.string.action_copy),
                                         tint = Color.White.copy(alpha = 0.6f),
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -5548,7 +5595,7 @@ fun IPerfFullScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
-                                        contentDescription = "Очистить консоль",
+                                        contentDescription = stringResource(R.string.action_clear_console),
                                         tint = Color.White.copy(alpha = 0.6f),
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -5713,7 +5760,7 @@ fun IPerfFullScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.KeyboardArrowUp,
-                                        contentDescription = "Предыдущая команда",
+                                        contentDescription = stringResource(R.string.action_prev_command),
                                         tint = Color.White.copy(alpha = 0.6f),
                                         modifier = Modifier.size(22.dp)
                                     )
@@ -5873,7 +5920,7 @@ fun IPerfFullScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Send,
-                                    contentDescription = "Отправить"
+                                    contentDescription = stringResource(R.string.action_send)
                                 )
                             }
                         }
@@ -8141,7 +8188,35 @@ fun Icon(
 
 fun translateText(raw: String, context: android.content.Context): String {
     val lang = context.resources.configuration.locales[0].language
+    translateTextPart1(raw, lang)?.let { return it }
+    translateTextPart2(raw, lang)?.let { return it }
+    translateTextPart3(raw, lang)?.let { return it }
+    translateTextPart4(raw, lang)?.let { return it }
+
+    if (raw.startsWith("Запущена (") && raw.endsWith(")")) {
+        val inst = raw.substringAfter("(").substringBefore(")")
+        return context.getString(R.string.status_running_inst, inst)
+    } else if (raw.startsWith("Интерфейс ") && raw.endsWith(" поднят")) {
+        val iface = raw.substringAfter("Интерфейс ").substringBefore(" поднят")
+        return context.getString(R.string.status_wg_up, iface)
+    } else if (raw.endsWith(" Остановлена")) {
+        val service = raw.substringBefore(" Остановлена")
+        return context.getString(R.string.status_ovpn_stopped, service)
+    } else if (raw.endsWith(" Запущена")) {
+        val service = raw.substringBefore(" Запущена")
+        return context.getString(R.string.status_ovpn_running, service)
+    } else if (raw.endsWith(" Выключен")) {
+        val iface = raw.substringBefore(" Выключен")
+        return context.getString(R.string.status_wg_off, iface)
+    } else {
+        return raw
+    }
+}
+
+
+fun translateTextPart1(raw: String, lang: String): String? {
     return when (raw) {
+
         "Подключение к интерактивной оболочке SSH..." -> when (lang) {
             "ru" -> "Подключение к интерактивной оболочке SSH..."
             "uk" -> "Підключення до інтерактивної оболонки SSH..."
@@ -8431,671 +8506,6 @@ fun translateText(raw: String, context: android.content.Context): String {
             "sv" -> "Du kan söka efter uppdateringar manuellt i inställningsavsnittet Om appen"
             else -> "You can check for updates manually in the About app settings section"
         }
-        "Выберите DNS для использования на роутере." -> {
-            when (lang) {
-                "ru" -> "Выберите DNS для использования на роутере."
-                "uk" -> "Виберіть DNS для використання на роутері."
-                "be" -> "Выберыце DNS для выкарыстання на роўтэры."
-                "de" -> "Wählen Sie das DNS für den Router aus."
-                "es" -> "Elija el DNS para usar en el enrutador."
-                "fr" -> "Choisissez le DNS à utiliser sur le routeur."
-                "it" -> "Scegli il DNS da utilizzare sul router."
-                "pt" -> "Escolha o DNS para usar no roteador."
-                "da" -> "Vælg DNS til brug på routeren."
-                "fi" -> "Valitse reitittimessä käytettävä DNS."
-                "kk" -> "Роутерде пайдалану үшін DNS таңдаңыз."
-                "lt" -> "Pasirinkite DNS naudoti maršrutizatoriuje."
-                "lv" -> "Izvēlieties DNS lietošanai maršrutētājā."
-                "sv" -> "Välj DNS för användning på routern."
-                else -> "Choose DNS to use on the router."
-            }
-        }
-        "Пользовательский DNS" -> {
-            when (lang) {
-                "ru" -> "Пользовательский DNS"
-                "uk" -> "Користувацький DNS"
-                "be" -> "Карыстацкі DNS"
-                "de" -> "Benutzerdefiniertes DNS"
-                "es" -> "DNS personalizado"
-                "fr" -> "DNS personnalisé"
-                "it" -> "DNS personalizzato"
-                "pt" -> "DNS personalizado"
-                "da" -> "Brugerdefineret DNS"
-                "fi" -> "Mukautettu DNS"
-                "kk" -> "Пайдаланушылық DNS"
-                "lt" -> "Pasirinktinis DNS"
-                "lv" -> "Pielāgots DNS"
-                "sv" -> "Anpassad DNS"
-                else -> "Custom DNS"
-            }
-        }
-        "IP адрес DNS сервера" -> {
-            when (lang) {
-                "ru" -> "IP адрес DNS сервера"
-                "uk" -> "IP адреса DNS сервера"
-                "be" -> "IP адрас DNS сервера"
-                "de" -> "IP-Adresse des DNS-Servers"
-                "es" -> "Dirección IP del servidor DNS"
-                "fr" -> "Adresse IP du serveur DNS"
-                "it" -> "Indirizzo IP del server DNS"
-                "pt" -> "Endereço IP do servidor DNS"
-                "da" -> "IP-adresse for DNS-server"
-                "fi" -> "DNS-palvelimen IP-osoite"
-                "kk" -> "DNS серверінің IP мекенжайы"
-                "lt" -> "DNS serverio IP adresas"
-                "lv" -> "DNS servera IP adrese"
-                "sv" -> "IP-adress för DNS-server"
-                else -> "DNS server IP address"
-            }
-        }
-        "Задать" -> {
-            when (lang) {
-                "ru" -> "Задать"
-                "uk" -> "Встановити"
-                "be" -> "Задаць"
-                "de" -> "Festlegen"
-                "es" -> "Establecer"
-                "fr" -> "Définir"
-                "it" -> "Imposta"
-                "pt" -> "Definir"
-                "da" -> "Indstil"
-                "fi" -> "Aseta"
-                "kk" -> "Орнату"
-                "lt" -> "Nustatyti"
-                "lv" -> "Iestatīt"
-                "sv" -> "Ställ in"
-                else -> "Set"
-            }
-        }
-        "Желаете ли вы добавить дополнительный DNS?" -> {
-            when (lang) {
-                "ru" -> "Желаете ли вы добавить дополнительный DNS?"
-                "uk" -> "Чи бажаєте ви додати додатковий DNS?"
-                "be" -> "Ці жадаеце вы дадаць дадатковы DNS?"
-                "de" -> "Möchten Sie einen zusätzlichen DNS hinzufügen?"
-                "es" -> "¿Desea agregar un DNS adicional?"
-                "fr" -> "Souhaitez-vous ajouter un DNS supplémentaire ?"
-                "it" -> "Vuoi aggiungere un DNS aggiuntivo?"
-                "pt" -> "Deseja adicionar um DNS adicional?"
-                "da" -> "Vil du tilføje en yderligere DNS?"
-                "fi" -> "Haluatko lisätä ylimääräisen DNS:n?"
-                "kk" -> "Қосымша DNS қосқыңыз келе ме?"
-                "lt" -> "Ar norite pridėti papildomą DNS?"
-                "lv" -> "Vai vēlaties pievienot papildu DNS?"
-                "sv" -> "Vill du lägga till en extra DNS?"
-                else -> "Do you want to add an additional DNS?"
-            }
-        }
-        "Желаете ли вы добавить один из публичных DNS?" -> {
-            when (lang) {
-                "ru" -> "Желаете ли вы добавить один из публичных DNS?"
-                "uk" -> "Чи бажаєте ви додати один з публічних DNS?"
-                "be" -> "Ці жадаеце вы дадаць адзін з публічных DNS?"
-                "de" -> "Möchten Sie einen öffentlichen DNS hinzufügen?"
-                "es" -> "¿Desea agregar uno de los DNS públicos?"
-                "fr" -> "Souhaitez-vous ajouter un des DNS publics ?"
-                "it" -> "Vuoi aggiungere uno dei DNS pubblici?"
-                "pt" -> "Deseja adicionar um dos DNS públicos?"
-                "da" -> "Vil du tilføje en af de offentlige DNS'er?"
-                "fi" -> "Haluatko lisätä yhden julkisista DNS:istä?"
-                "kk" -> "Ашық DNS-тің бірін қосқыңыз келе ме?"
-                "lt" -> "Ar norite pridėti vieną iš viešųjų DNS?"
-                "lv" -> "Vai vēlaties pievienot vienu no publiskajiem DNS?"
-                "sv" -> "Vill du lägga till en av de offentliga DNS:erna?"
-                else -> "Do you want to add one of the public DNS?"
-            }
-        }
-        "Добавьте один или несколько IP, разделяя их запятыми" -> {
-            when (lang) {
-                "ru" -> "Добавьте один или несколько IP, разделяя их запятыми"
-                "uk" -> "Додайте один або кілька IP, розділяючи їх комами"
-                "be" -> "Дадайце адзін або некалькі IP, раздзяляючы іх коскамі"
-                "de" -> "Fügen Sie eine oder mehrere IP-Adressen durch Kommas getrennt hinzu"
-                "es" -> "Agregue una o más IP, separadas por comas"
-                "fr" -> "Ajoutez une ou plusieurs adresses IP, séparées par des virgules"
-                "it" -> "Aggiungi uno o più IP, separati da virgole"
-                "pt" -> "Adicione um ou mais IPs, separados por vírgulas"
-                "da" -> "Tilføj en eller flere IP'er, adskilt af kommaer"
-                "fi" -> "Lisää yksi tai useampi IP-osoite pilkuilla erotettuna"
-                "kk" -> "Бір немесе бірнеше IP қосыңыз, оларды үтірмен бөліңіз"
-                "lt" -> "Pridėkite vieną ar kelis IP, atskirtus kableliais"
-                "lv" -> "Pievienojiet vienu vai vairākus IP, atdalot tos ar komatiem"
-                "sv" -> "Lägg till en eller flera IP-adresser separerade med kommatecken"
-                else -> "Add one or more IPs, separated by commas"
-            }
-        }
-        "Дополнительный DNS" -> {
-            when (lang) {
-                "ru" -> "Дополнительный DNS"
-                "uk" -> "Додатковий DNS"
-                "be" -> "Дадатковы DNS"
-                "de" -> "Zusätzliches DNS"
-                "es" -> "DNS adicional"
-                "fr" -> "DNS supplémentaire"
-                "it" -> "DNS aggiuntivo"
-                "pt" -> "DNS adicional"
-                "da" -> "Yderligere DNS"
-                "fi" -> "Lisä-DNS"
-                "kk" -> "Қосымша DNS"
-                "lt" -> "Papildomas DNS"
-                "lv" -> "Papildu DNS"
-                "sv" -> "Ytterligare DNS"
-                else -> "Additional DNS"
-            }
-        }
-        "Да" -> {
-            when (lang) {
-                "ru" -> "Да"
-                "uk" -> "Так"
-                "be" -> "Так"
-                "de" -> "Ja"
-                "es" -> "Sí"
-                "fr" -> "Oui"
-                "it" -> "Sì"
-                "pt" -> "Sim"
-                "da" -> "Ja"
-                "fi" -> "Kyllä"
-                "kk" -> "Иә"
-                "lt" -> "Taip"
-                "lv" -> "Jā"
-                "sv" -> "Ja"
-                else -> "Yes"
-            }
-        }
-        "Нет" -> {
-            when (lang) {
-                "ru" -> "Нет"
-                "uk" -> "Ні"
-                "be" -> "Не"
-                "de" -> "Nein"
-                "es" -> "No"
-                "fr" -> "Non"
-                "it" -> "No"
-                "pt" -> "Não"
-                "da" -> "Nej"
-                "fi" -> "Ei"
-                "kk" -> "Жоқ"
-                "lt" -> "Ne"
-                "lv" -> "Nē"
-                "sv" -> "Nej"
-                else -> "No"
-            }
-        }
-        "Connecting..." -> {
-            when (lang) {
-                "ru" -> "Подключение..."
-                "uk" -> "Підключення..."
-                "be" -> "Падключэнне..."
-                "de" -> "Verbinden..."
-                "es" -> "Conectando..."
-                "fr" -> "Connexion..."
-                "it" -> "Connessione..."
-                "pt" -> "Conectando..."
-                "da" -> "Forbinder..."
-                "fi" -> "Yhdistetään..."
-                "kk" -> "Қосылуда..."
-                "lt" -> "Jungiamasi..."
-                "lv" -> "Savienojas..."
-                "sv" -> "Ansluter..."
-                else -> "Connecting..."
-            }
-        }
-        "Detecting..." -> {
-            when (lang) {
-                "ru" -> "Определение..."
-                "uk" -> "Визначення..."
-                "be" -> "Вызначэнне..."
-                "de" -> "Ermitteln..."
-                "es" -> "Detectando..."
-                "fr" -> "Détection..."
-                "it" -> "Rilevamento..."
-                "pt" -> "Detectando..."
-                "da" -> "Registrerer..."
-                "fi" -> "Tunnistetaan..."
-                "kk" -> "Анықталуда..."
-                "lt" -> "Aptinkama..."
-                "lv" -> "Nosaka..."
-                "sv" -> "Söker..."
-                else -> "Detecting..."
-            }
-        }
-        "Offline / Error" -> {
-            when (lang) {
-                "ru" -> "Офлайн / Ошибка"
-                "uk" -> "Офлайн / Помилка"
-                "be" -> "Афлайн / Памылка"
-                "de" -> "Offline / Fehler"
-                "es" -> "Sin conexão / Error"
-                "fr" -> "Hors ligne / Erreur"
-                "it" -> "Offline / Errore"
-                "pt" -> "Offline / Erro"
-                "da" -> "Offline / Fejl"
-                "fi" -> "Offline / Virhe"
-                "kk" -> "Офлайн / Қате"
-                "lt" -> "Neprisijungęs / Klaida"
-                "lv" -> "Bezsaiste / Kļūda"
-                "sv" -> "Offline / Fel"
-                else -> "Offline / Error"
-            }
-        }
-        "Unavailable" -> {
-            when (lang) {
-                "ru" -> "Недоступно"
-                "uk" -> "Недоступно"
-                "be" -> "Недаступна"
-                "de" -> "Nicht verfügbar"
-                "es" -> "No disponible"
-                "fr" -> "Indisponible"
-                "it" -> "Non disponibile"
-                "pt" -> "Indisponível"
-                "da" -> "Utilgængelig"
-                "fi" -> "Ei saatavilla"
-                "kk" -> "Қолжетімсіз"
-                "lt" -> "Neprieinama"
-                "lv" -> "Nav pieejams"
-                "sv" -> "Inte tillgänglig"
-                else -> "Unavailable"
-            }
-        }
-        "Unknown" -> {
-            when (lang) {
-                "ru" -> "Неизвестно"
-                "uk" -> "Невідомо"
-                "be" -> "Невядома"
-                "de" -> "Unbekannt"
-                "es" -> "Desconocido"
-                "fr" -> "Inconnu"
-                "it" -> "Sconosciuto"
-                "pt" -> "Desconhecido"
-                "da" -> "Ukendt"
-                "fi" -> "Tuntematon"
-                "kk" -> "Белгісіз"
-                "lt" -> "Nežinoma"
-                "lv" -> "Nezināms"
-                "sv" -> "Okänd"
-                else -> "Unknown"
-            }
-        }
-        "Подтверждение DNS" -> {
-            when (lang) {
-                "ru" -> "Подтверждение DNS"
-                "uk" -> "Підтвердження DNS"
-                "be" -> "Пацвярджэнне DNS"
-                "de" -> "DNS-Bestätigung"
-                "es" -> "Confirmación de DNS"
-                "fr" -> "Confirmation DNS"
-                "it" -> "Conferma DNS"
-                "pt" -> "Confirmação de DNS"
-                "da" -> "DNS-bekræftelse"
-                "fi" -> "DNS-vahvistus"
-                "kk" -> "DNS растау"
-                "lt" -> "DNS patvirtinimas"
-                "lv" -> "DNS apstiprinājums"
-                "sv" -> "DNS-bekräftelse"
-                else -> "DNS Confirmation"
-            }
-        }
-        "Установить %s в качестве DNS сервера?" -> {
-            when (lang) {
-                "ru" -> "Установить %s в качестве DNS сервера?"
-                "uk" -> "Встановити %s як DNS сервер?"
-                "be" -> "Усталяваць %s у якасці DNS сервера?"
-                "de" -> "%s als DNS-Server festlegen?"
-                "es" -> "¿Establecer %s como servidor DNS?"
-                "fr" -> "Définir %s comme serveur DNS ?"
-                "it" -> "Impostare %s come server DNS?"
-                "pt" -> "Definir %s como servidor DNS?"
-                "da" -> "Indstil %s som DNS-server?"
-                "fi" -> "Aseta %s DNS-palvelimeksi?"
-                "kk" -> "%s DNS сервері ретінде орнату керек пе?"
-                "lt" -> "Nustatyti %s kaip DNS serverį?"
-                "lv" -> "Iestatīt %s kā DNS serveri?"
-                "sv" -> "Ställ in %s som DNS-server?"
-                else -> "Set %s as DNS server?"
-            }
-        }
-        "Подтвердить" -> {
-            when (lang) {
-                "ru" -> "Подтвердить"
-                "uk" -> "Підтвердити"
-                "be" -> "Пацвердзіць"
-                "de" -> "Bestätigen"
-                "es" -> "Confirmar"
-                "fr" -> "Confirmer"
-                "it" -> "Conferma"
-                "pt" -> "Confirmar"
-                "da" -> "Bekræft"
-                "fi" -> "Vahvista"
-                "kk" -> "Растау"
-                "lt" -> "Patvirtinti"
-                "lv" -> "Apstiprināt"
-                "sv" -> "Bekräfta"
-                else -> "Confirm"
-            }
-        }
-        "Публичные DNS сервисы" -> {
-            when (lang) {
-                "ru" -> "Публичные DNS сервисы"
-                "uk" -> "Публічні DNS сервіси"
-                "be" -> "Публічныя DNS сэрвісы"
-                "de" -> "Öffentliche DNS-Dienste"
-                "es" -> "Servicios DNS públicos"
-                "fr" -> "Services DNS publics"
-                "it" -> "Servizi DNS pubblici"
-                "pt" -> "Serviços DNS públicos"
-                "da" -> "Offentlige DNS-tjenester"
-                "fi" -> "Julkiset DNS-palvelut"
-                "kk" -> "Жалпыға ортақ DNS қызметтері"
-                "lt" -> "Viešosios DNS paslaugos"
-                "lv" -> "Publiskie DNS pakalpojumi"
-                "sv" -> "Offentliga DNS-tjänster"
-                else -> "Public DNS Services"
-            }
-        }
-        "дополнительно" -> {
-            when (lang) {
-                "ru" -> "дополнительно"
-                "uk" -> "додатково"
-                "be" -> "дадаткова"
-                "de" -> "zusätzlich"
-                "es" -> "adicionalmente"
-                "fr" -> "en plus"
-                "it" -> "inoltre"
-                "pt" -> "adicionalmente"
-                "da" -> "ekstra"
-                "fi" -> "lisäksi"
-                "kk" -> "қосымша"
-                "lt" -> "papildomai"
-                "lv" -> "papildus"
-                "sv" -> "extra"
-                else -> "additionally"
-            }
-        }
-        "По умолчанию (Провайдер)" -> {
-            when (lang) {
-                "ru" -> "По умолчанию (Провайдер)"
-                "uk" -> "За замовчуванням (Провайдер)"
-                "be" -> "Па змаўчанні (Правайдэр)"
-                "de" -> "Standard (ISP)"
-                "es" -> "Predeterminado (ISP)"
-                "fr" -> "Par défaut (FAI)"
-                "it" -> "Predefinito (ISP)"
-                "pt" -> "Padrão (ISP)"
-                "da" -> "Standard (ISP)"
-                "fi" -> "Oletus (ISP)"
-                "kk" -> "Әдепкі (Провайдер)"
-                "lt" -> "Numatytasis (ISP)"
-                "lv" -> "Noklusējums (ISP)"
-                "sv" -> "Standard (ISP)"
-                else -> "Default (ISP)"
-            }
-        }
-        "Пользовательский: %s" -> {
-            when (lang) {
-                "ru" -> "Пользовательский: %s"
-                "uk" -> "Користувацький: %s"
-                "be" -> "Карыстацкі: %s"
-                "de" -> "Benutzerdefiniert: %s"
-                "es" -> "Personalizado: %s"
-                "fr" -> "Personnalisé : %s"
-                "it" -> "Personalizzato: %s"
-                "pt" -> "Personalizado: %s"
-                "da" -> "Brugerdefineret: %s"
-                "fi" -> "Mukautettu: %s"
-                "kk" -> "Пайдаланушылық: %s"
-                "lt" -> "Pasirinktinis: %s"
-                "lv" -> "Pielāgots: %s"
-                "sv" -> "Anpassad: %s"
-                else -> "Custom: %s"
-            }
-        }
-        "Получение данных..." -> {
-            when (lang) {
-                "ru" -> "Получение данных..."
-                "uk" -> "Отримання даних..."
-                "be" -> "Атрыманне дадзеных..."
-                "de" -> "Daten abrufen..."
-                "es" -> "Obteniendo datos..."
-                "fr" -> "Obtention des données..."
-                "it" -> "Recupero dati..."
-                "pt" -> "Obtendo dados..."
-                "da" -> "Henter data..."
-                "fi" -> "Haetaan tietoja..."
-                "kk" -> "Деректер алынуда..."
-                "lt" -> "Gaunami duomenys..."
-                "lv" -> "Datu iegūšana..."
-                "sv" -> "Hämtar data..."
-                else -> "Getting data..."
-            }
-        }
-        "Температура" -> {
-            when (lang) {
-                "ru" -> "Температура"
-                "uk" -> "Температура"
-                "be" -> "Тэмпература"
-                "de" -> "Temperatur"
-                "es" -> "Temperatura"
-                "fr" -> "Température"
-                "it" -> "Temperatura"
-                "pt" -> "Temperatura"
-                "da" -> "Temperatur"
-                "fi" -> "Lämpötila"
-                "kk" -> "Температура"
-                "lt" -> "Temperatūra"
-                "lv" -> "Temperatūra"
-                "sv" -> "Temperatur"
-                else -> "Temperature"
-            }
-        }
-        "недоступна" -> {
-            when (lang) {
-                "ru" -> "недоступна"
-                "uk" -> "недоступна"
-                "be" -> "недаступна"
-                "de" -> "nicht verfügbar"
-                "es" -> "no disponible"
-                "fr" -> "indisponible"
-                "it" -> "non disponibile"
-                "pt" -> "indisponível"
-                "da" -> "ikke tilgængelig"
-                "fi" -> "ei saatavilla"
-                "kk" -> "қолжетімсіз"
-                "lt" -> "neprieinama"
-                "lv" -> "nav pieejams"
-                "sv" -> "ej tillgänglig"
-                else -> "unavailable"
-            }
-        }
-        "Router Control" -> context.getString(R.string.app_name)
-        "Настройка подключения" -> context.getString(R.string.tab_dashboard)
-        "Главная" -> context.getString(R.string.tab_dashboard)
-        "Консоль" -> context.getString(R.string.tab_console)
-        "Тест" -> context.getString(R.string.tab_test)
-        "Инструменты" -> context.getString(R.string.tab_test)
-        "Тест скорости M-Lab" -> context.getString(R.string.speed_test_title)
-        "Перезапуск" -> context.getString(R.string.tab_reboot)
-        "Перезагрузка" -> context.getString(R.string.tab_reboot)
-        "Перезагрузка роутера" -> context.getString(R.string.dialog_reboot_title)
-        "Вы уверены, что хотите перезагрузить роутер? Это временно прервет сетевое соединение." -> context.getString(R.string.dialog_reboot_msg)
-        "Перезагрузить" -> context.getString(R.string.btn_reboot)
-        "Отмена" -> context.getString(R.string.btn_cancel)
-        "Публичный IP" -> context.getString(R.string.label_public_ip)
-        "Локация" -> context.getString(R.string.label_location)
-        "Провайдер" -> context.getString(R.string.label_provider)
-        "Загрузка ↓" -> context.getString(R.string.speed_download)
-        "Выгрузка ↑" -> context.getString(R.string.speed_upload)
-        "Процессор" -> context.getString(R.string.label_processor)
-        "ЦП" -> context.getString(R.string.label_cpu)
-        "ОЗУ" -> context.getString(R.string.label_ram)
-        "Аптайм" -> context.getString(R.string.label_uptime)
-        "Ожидание данных трафика..." -> context.getString(R.string.msg_waiting_traffic)
-        "SSH терминал" -> context.getString(R.string.console_title)
-        "Очистить логи" -> context.getString(R.string.console_desc_clear)
-        "Терминал пуст. Введите команду в поле ниже." -> context.getString(R.string.console_empty)
-        "Терминал пуст. Введите команду в поле ниже или используйте уже введенную команду для запуска теста на скачивание с роутера на смартфон в течение 30 секунд." -> context.getString(R.string.iperf_router_console_empty)
-        "Терминал пуст. Введите команду в поле ниже или используйте уже введенную команду для запуска теста на скачивание с роутера на смартфон в течение 30 секунд" -> context.getString(R.string.iperf_router_console_empty)
-        "Терминал пуст. Ведите команду в поле ниже или используйте уже введенную команду для запуска теста на скачивание с роутера на смартфон в течение 30 секунд." -> context.getString(R.string.iperf_router_console_empty)
-        "Терминал пуст. Ведите команду в поле ниже или используйте уже введенную команду для запуска теста на скачивание с роутера на смартфон в течение 30 секунд" -> context.getString(R.string.iperf_router_console_empty)
-        "Введите команду" -> context.getString(R.string.console_hint_command)
-        "Отправить" -> context.getString(R.string.console_desc_send)
-        "SSH Подключение" -> context.getString(R.string.ssh_title)
-        context.getString(R.string.action_close) -> context.getString(R.string.ssh_desc_close)
-        "Введите реквизиты доступа SSH вашего роутера OpenWrt для сбора статистики и управления службами VPN." -> context.getString(R.string.ssh_instructions)
-        "IP Адрес" -> context.getString(R.string.ssh_host)
-        "Порт SSH" -> context.getString(R.string.ssh_port)
-        "Логин" -> context.getString(R.string.ssh_username)
-        "Пароль SSH" -> context.getString(R.string.ssh_password)
-        "Пароль" -> context.getString(R.string.ssh_password_short)
-        "Скрыть" -> context.getString(R.string.ssh_btn_hide)
-        "Показать" -> context.getString(R.string.ssh_btn_show)
-        "Подключено" -> context.getString(R.string.btn_connected)
-        "Подключить" -> context.getString(R.string.btn_connect)
-        "Поведение светодиода" -> context.getString(R.string.led_behavior_title)
-        "Горит постоянно" -> context.getString(R.string.led_always_on)
-        "Индикатор трафика" -> context.getString(R.string.led_traffic_indicator)
-        "Интерфейс WireGuard" -> context.getString(R.string.wg_interface_title)
-        "Выберите интерфейс" -> context.getString(R.string.wg_select_interface)
-        "Выбор интерфейса" -> context.getString(R.string.wg_desc_select)
-        "Сохранить изменения" -> context.getString(R.string.btn_save_changes)
-        "Удалить подключение" -> context.getString(R.string.btn_delete_conn)
-        "Запущена" -> context.getString(R.string.status_running)
-        "Остановлена" -> context.getString(R.string.status_stopped)
-        "OpenVPN Служба" -> context.getString(R.string.title_openvpn_service)
-        "WireGuard Интерфейс" -> context.getString(R.string.title_wireguard_interface)
-        "Включен" -> context.getString(R.string.status_on)
-        "Выключен" -> context.getString(R.string.status_off)
-        "Выберите OpenVPN, нажав на иконку слева" -> context.getString(R.string.status_select_openvpn)
-        "Выберите Wireguard, нажав на иконку слева" -> context.getString(R.string.status_select_wireguard)
-        "Выберите OpenVPN / Wireguard, нажав на иконку слева" -> context.getString(R.string.status_select_vpn)
-        "Список соединений" -> context.getString(R.string.vpn_list_desc)
-        "Получение данных от роутера..." -> context.getString(R.string.vpn_getting_data)
-        "Применение изменений..." -> context.getString(R.string.vpn_applying_changes)
-        "Активен" -> context.getString(R.string.vpn_active)
-        "Нет активных VPN соединений" -> context.getString(R.string.vpn_no_active)
-        "Все VPN отключены" -> context.getString(R.string.vpn_all_disabled)
-        "Доступные VPN. Выберите те, которые должны быть включены" -> context.getString(R.string.vpn_available_title)
-        "Применить" -> context.getString(R.string.vpn_apply)
-        "AmneziaWG Интерфейс" -> context.getString(R.string.vpn_amneziawg_interface)
-        "Светодиод роутера" -> context.getString(R.string.title_router_led)
-        "Включение..." -> context.getString(R.string.status_enabling)
-        "Включение VPN..." -> context.getString(R.string.status_enabling)
-        "Выключение..." -> context.getString(R.string.status_disabling)
-        "Выключение VPN..." -> context.getString(R.string.status_disabling)
-        "Переключение..." -> context.getString(R.string.status_switching)
-        "Кликните здесь, чтобы открыть клавиатуру и начать ввод..." -> {
-            when (lang) {
-                "ru" -> "Кликните здесь, чтобы открыть клавиатуру и начать ввод..."
-                "uk" -> "Клікніть тут, щоб відкрити клавіатуру та почати введення..."
-                "be" -> "Клікніце тут, каб адкрыць клавіятуру і пачаць увод..."
-                "de" -> "Klicken Sie hier, um die Tastatur zu öffnen und mit der Eingabe zu beginnen..."
-                "es" -> "Haga clic aquí para abrir el teclado y comenzar a escribir..."
-                "fr" -> "Cliquez ici pour ouvrir le clavier et commencer à saisir..."
-                "it" -> "Clicca qui per aprire la tastiera e iniziare a digitare..."
-                "pt" -> "Clique aqui para abrir o teclado e começar a digitar..."
-                "da" -> "Klik her for at åbne tastaturet og begynde at skrive..."
-                "fi" -> "Avaa näppäimistö ja aloita kirjoittaminen napsauttamalla tästä..."
-                "kk" -> "Пернетақтаны ашу және теруді бастау үшін осы жерді басыңыз..."
-                "lt" -> "Spustelėkite čias, kad atidarytumėte klaviatūrą ir pradėtumėte rašyti..."
-                "lv" -> "Noklikšķiniet šeit, lai atvērtu tastatūru un sāktu rakstīt..."
-                "sv" -> "Klicka här för att öppna tangentbordet och börja skriva..."
-                else -> "Click here to open the keyboard and start typing..."
-            }
-        }
-        "Добавить в избранное" -> {
-            when (lang) {
-                "ru" -> "Добавить в избранное"
-                "uk" -> "Додати до обраного"
-                "be" -> "Дадаць у абранае"
-                "de" -> "Zu Favoriten hinzufügen"
-                "es" -> "Agregar a favoritos"
-                "fr" -> "Ajouter aux favoris"
-                "it" -> "Aggiungi ai preferiti"
-                "pt" -> "Adicionar aos favoritos"
-                "da" -> "Tilføj til favoritter"
-                "fi" -> "Lisää suosikkeihin"
-                "kk" -> "Таңдаулыларға қосу"
-                "lt" -> "Pridėti prie mėgstamiausių"
-                "lv" -> "Pievienot izlasei"
-                "sv" -> "Lägg till i favoriter"
-                else -> "Add to Favorites"
-            }
-        }
-        "Команда" -> {
-            when (lang) {
-                "ru" -> "Команда"
-                "uk" -> "Команда"
-                "be" -> "Каманда"
-                "de" -> "Befehl"
-                "es" -> "Comando"
-                "fr" -> "Commande"
-                "it" -> "Comando"
-                "pt" -> "Comando"
-                "da" -> "Kommando"
-                "fi" -> "Komento"
-                "kk" -> "Команда"
-                "lt" -> "Komanda"
-                "lv" -> "Komanda"
-                "sv" -> "Kommando"
-                else -> "Command"
-            }
-        }
-        "Добавить" -> {
-            when (lang) {
-                "ru" -> "Добавить"
-                "uk" -> "Додати"
-                "be" -> "Дадаць"
-                "de" -> "Hinzufügen"
-                "es" -> "Agregar"
-                "fr" -> "Ajouter"
-                "it" -> "Aggiungi"
-                "pt" -> "Adicionar"
-                "da" -> "Tilføj"
-                "fi" -> "Lisää"
-                "kk" -> "Қосу"
-                "lt" -> "Pridėti"
-                "lv" -> "Pievienot"
-                "sv" -> "Lägg till"
-                else -> "Add"
-            }
-        }
-        "Текст скопирован в буфер обмена" -> {
-            when (lang) {
-                "ru" -> "Текст скопирован в буфер обмена"
-                "uk" -> "Текст скопійовано в буфер обміну"
-                "be" -> "Тэкст скапіяваны ў буфер абмену"
-                "de" -> "Text in die Zwischenablage kopiert"
-                "es" -> "Texto copiado al portapapeles"
-                "fr" -> "Texte copié dans le presse-papiers"
-                "it" -> "Testo copiato negli appunti"
-                "pt" -> "Texto copiado para a área de transferência"
-                "da" -> "Tekst kopieret til udklipsholder"
-                "fi" -> "Teksti kopioitu leikepöydälle"
-                "kk" -> "Мәтін алмасу буферіне көшірілді"
-                "lt" -> "Tekstas nukopijuotas į iškarpinę"
-                "lv" -> "Teksts nokopēts starpliktuvē"
-                "sv" -> "Texten har kopierats till urklipp"
-                else -> "Text copied to clipboard"
-            }
-        }
-        "Копировать" -> {
-            when (lang) {
-                "ru" -> "Копировать"
-                "uk" -> "Копіювати"
-                "be" -> "Капіяваць"
-                "de" -> "Kopieren"
-                "es" -> "Copiar"
-                "fr" -> "Copier"
-                "it" -> "Copia"
-                "pt" -> "Copiar"
-                "da" -> "Kopier"
-                "fi" -> "Kopioi"
-                "kk" -> "Көшіру"
-                "lt" -> "Kopijuoti"
-                "lv" -> "Kopēt"
-                "sv" -> "Kopiera"
-                else -> "Copy"
-            }
-        }
         "Android application for managing OpenWrt routers." -> when (lang) {
             "ru" -> "Android-приложение для управления роутерами OpenWrt."
             "uk" -> "Android-додаток для керування роутерами OpenWrt."
@@ -9177,6 +8587,13 @@ fun translateText(raw: String, context: android.content.Context): String {
             "tr" -> "IP adresi / Sunucu"
             else -> "IP address / Host"
         }
+        else -> null
+    }
+}
+
+fun translateTextPart2(raw: String, lang: String): String? {
+    return when (raw) {
+
         "Openwrt Router Control" -> when (lang) {
             "ru" -> "Openwrt Router Control"
             "uk" -> "Openwrt Router Control"
@@ -9284,33 +8701,6 @@ fun translateText(raw: String, context: android.content.Context): String {
             "sl" -> "Dodaj nov usmerjevalnik"
             "tr" -> "Yeni yönlendirici ekle"
             else -> "Add new router"
-        }
-        context.getString(R.string.action_close) -> when (lang) {
-            "ru" -> context.getString(R.string.action_close)
-            "uk" -> "Закрити"
-            "be" -> "Зачыніць"
-            "de" -> "Schließen"
-            "es" -> "Cerrar"
-            "fr" -> "Fermer"
-            "it" -> "Chiudi"
-            "pt" -> "Fechar"
-            "da" -> "Luk"
-            "fi" -> "Sulje"
-            "kk" -> "Жабу"
-            "lt" -> "Uždaryti"
-            "lv" -> "Aizvērt"
-            "ro" -> "Închide"
-            "sv" -> "Stäng"
-            "bg" -> "Затваряне"
-            "cs" -> "Zavřít"
-            "el" -> "Κλείσιμο"
-            "et" -> "Sulge"
-            "hu" -> "Bezárás"
-            "pl" -> "Zamknij"
-            "sk" -> "Zavrieť"
-            "sl" -> "Zapri"
-            "tr" -> "Kapat"
-            else -> "Close"
         }
         "Имя пользователя" -> when (lang) {
             "ru" -> "Имя пользователя"
@@ -9717,28 +9107,1322 @@ fun translateText(raw: String, context: android.content.Context): String {
             "tr" -> "Bağlantı başarısız. Lütfen IP, bağlant noktası, giriş ve şifreyi kontrol edin."
             else -> "Connection failed. Please check IP, port, login, and password."
         }
-        else -> {
-            if (raw.startsWith("Запущена (") && raw.endsWith(")")) {
-                val inst = raw.substringAfter("(").substringBefore(")")
-                context.getString(R.string.status_running_inst, inst)
-            } else if (raw.startsWith("Интерфейс ") && raw.endsWith(" поднят")) {
-                val iface = raw.substringAfter("Интерфейс ").substringBefore(" поднят")
-                context.getString(R.string.status_wg_up, iface)
-            } else if (raw.endsWith(" Остановлена")) {
-                val service = raw.substringBefore(" Остановлена")
-                context.getString(R.string.status_ovpn_stopped, service)
-            } else if (raw.endsWith(" Запущена")) {
-                val service = raw.substringBefore(" Запущена")
-                context.getString(R.string.status_ovpn_running, service)
-            } else if (raw.endsWith(" Выключен")) {
-                val iface = raw.substringBefore(" Выключен")
-                context.getString(R.string.status_wg_off, iface)
-            } else {
-                raw
-            }
+        "ED25519 ключи с паролем не поддерживаются библиотекой JSch. Вы не сможете использовать этот ключ." -> when (lang) {
+            "ru" -> "ED25519 ключи с паролем не поддерживаются библиотекой JSch. Вы не сможете использовать этот ключ."
+            "uk" -> "ED25519 ключі з паролем не підтримуються бібліотекою JSch. Ви не можете використовувати цей ключ."
+            "be" -> "ED25519 ключы з паролем не падтрымліваюцца бібліятэкай JSch. Вы не зможаце выкарыстоўваць гэты ключ."
+            "de" -> "ED25519 Passwortschlüssel werden von der JSch-Bibliothek nicht unterstützt. Sie können diesen Schlüssel nicht verwenden."
+            "es" -> "ED25519 Las claves de contraseña no son compatibles con la biblioteca JSch. No podrás utilizar esta clave."
+            "fr" -> "ED25519 Les clés de mot de passe ne sont pas prises en charge par la bibliothèque JSch. Vous ne pourrez pas utiliser cette clé."
+            "it" -> "ED25519 Le chiavi password non sono supportate dalla libreria JSch. Non sarai in grado di utilizzare questa chiave."
+            "pt" -> "ED25519 As chaves de senha não são suportadas pela biblioteca JSch. Você não poderá usar esta chave."
+            "da" -> "ED25519 Adgangskodenøgler understøttes ikke af JSch-biblioteket. Du vil ikke være i stand til at bruge denne nøgle."
+            "fi" -> "ED25519 JSch-kirjasto ei tue salasanaavaimia. Et voi käyttää tätä avainta."
+            "kk" -> "ED25519 Құпия сөз кілттеріне JSch кітапханасы қолдау көрсетпейді. Сіз бұл кілтті пайдалана алмайсыз."
+            "lt" -> "ED25519 JSch biblioteka nepalaiko slaptažodžio raktų. Negalėsite naudoti šio rakto."
+            "lv" -> "ED25519 JSch bibliotēka neatbalsta paroles atslēgas. Jūs nevarēsit izmantot šo atslēgu."
+            "ro" -> "ED25519 Cheile de parolă nu sunt acceptate de biblioteca JSch. Nu veți putea folosi această cheie."
+            "sv" -> "ED25519 Lösenordsnycklar stöds inte av JSch-biblioteket. Du kommer inte att kunna använda denna nyckel."
+            "bg" -> "ED25519 Ключовете за парола не се поддържат от библиотеката JSch. Няма да можете да използвате този ключ."
+            "cs" -> "Klíče hesla ED25519 nejsou podporovány knihovnou JSch. Tento klíč nebudete moci použít."
+            "el" -> "ED25519 Τα κλειδιά κωδικού πρόσβασης δεν υποστηρίζονται από τη βιβλιοθήκη JSch. Δεν θα μπορείτε να χρησιμοποιήσετε αυτό το κλειδί."
+            "et" -> "ED25519 JSchi teek ei toeta paroolivõtmeid. Te ei saa seda võtit kasutada."
+            "hu" -> "Az ED25519 jelszavas kulcsokat a JSch könyvtár nem támogatja. Ezt a kulcsot nem fogja tudni használni."
+            "pl" -> "ED25519 Klucze haseł nie są obsługiwane przez bibliotekę JSch. Nie będziesz mógł użyć tego klucza."
+            "sk" -> "Knižnica JSch nepodporuje kľúče hesiel ED25519. Tento kľúč nebudete môcť použiť."
+            "sl" -> "Knjižnica JSch ne podpira ključev gesel ED25519. Tega ključa ne boste mogli uporabiti."
+            "tr" -> "ED25519 Parola anahtarları JSch kitaplığı tarafından desteklenmez. Bu anahtarı kullanamayacaksınız."
+            else -> "ED25519 Password keys are not supported by the JSch library. You will not be able to use this key."
         }
+        else -> null
     }
 }
+
+fun translateTextPart3(raw: String, lang: String): String? {
+    return when (raw) {
+
+        "Алгоритм" -> when (lang) {
+            "ru" -> "Алгоритм"
+            "uk" -> "Алгоритм"
+            "be" -> "Алгарытм"
+            "de" -> "Algorithmus"
+            "es" -> "Algoritmo"
+            "fr" -> "Algorithme"
+            "it" -> "Algoritmo"
+            "pt" -> "Algoritmo"
+            "da" -> "Algoritme"
+            "fi" -> "Algoritmi"
+            "kk" -> "Алгоритм"
+            "lt" -> "Algoritmas"
+            "lv" -> "Algoritms"
+            "ro" -> "Algoritm"
+            "sv" -> "Algoritm"
+            "bg" -> "Алгоритъм"
+            "cs" -> "Algoritmus"
+            "el" -> "Αλγόριθμος"
+            "et" -> "Algoritm"
+            "hu" -> "Algoritmus"
+            "pl" -> "Algorytm"
+            "sk" -> "Algoritmus"
+            "sl" -> "Algoritem"
+            "tr" -> "Algoritma"
+            else -> "Algorithm"
+        }
+        "Вход по SSH ключу" -> when (lang) {
+            "ru" -> "Вход по SSH ключу"
+            "uk" -> "Вхід по SSH ключу"
+            "be" -> "Уваход па SSH ключу"
+            "de" -> "Melden Sie sich über den SSH-Schlüssel an"
+            "es" -> "Iniciar sesión mediante clave SSH"
+            "fr" -> "Connectez-vous via la clé SSH"
+            "it" -> "Accedi tramite chiave SSH"
+            "pt" -> "Login via chave SSH"
+            "da" -> "Log ind med SSH-nøgle"
+            "fi" -> "Kirjaudu SSH-avaimella"
+            "kk" -> "SSH кілті арқылы кіру"
+            "lt" -> "Prisijunkite naudodami SSH raktą"
+            "lv" -> "Piesakieties, izmantojot SSH atslēgu"
+            "ro" -> "Conectați-vă prin cheie SSH"
+            "sv" -> "Logga in med SSH-nyckel"
+            "bg" -> "Влезте чрез SSH ключ"
+            "cs" -> "Přihlášení přes SSH klíč"
+            "el" -> "Είσοδος μέσω κλειδιού SSH"
+            "et" -> "Logige sisse SSH-võtmega"
+            "hu" -> "Bejelentkezés SSH kulcson keresztül"
+            "pl" -> "Zaloguj się za pomocą klucza SSH"
+            "sk" -> "Prihláste sa pomocou kľúča SSH"
+            "sl" -> "Prijava preko SSH ključa"
+            "tr" -> "SSH anahtarıyla giriş yapın"
+            else -> "Login via SSH key"
+        }
+        "Вход по паролю" -> when (lang) {
+            "ru" -> "Вход по паролю"
+            "uk" -> "Вхід паролем"
+            "be" -> "Уваход па паролі"
+            "de" -> "Mit Passwort anmelden"
+            "es" -> "Iniciar sesión con contraseña"
+            "fr" -> "Connectez-vous avec mot de passe"
+            "it" -> "Accedi con la password"
+            "pt" -> "Entrar com senha"
+            "da" -> "Log ind med adgangskode"
+            "fi" -> "Kirjaudu sisään salasanalla"
+            "kk" -> "Құпия сөзбен кіріңіз"
+            "lt" -> "Prisijunkite su slaptažodžiu"
+            "lv" -> "Piesakieties ar paroli"
+            "ro" -> "Autentificare cu parola"
+            "sv" -> "Logga in med lösenord"
+            "bg" -> "Влезте с парола"
+            "cs" -> "Přihlaste se pomocí hesla"
+            "el" -> "Είσοδος με κωδικό πρόσβασης"
+            "et" -> "Logi sisse parooliga"
+            "hu" -> "Bejelentkezés jelszóval"
+            "pl" -> "Zaloguj się hasłem"
+            "sk" -> "Prihláste sa heslom"
+            "sl" -> "Prijava z geslom"
+            "tr" -> "Şifre ile giriş yapın"
+            else -> "Login with password"
+        }
+        "Генерация SSH-ключа" -> when (lang) {
+            "ru" -> "Генерация SSH-ключа"
+            "uk" -> "Генерація SSH-ключа"
+            "be" -> "Генерацыя SSH-ключа"
+            "de" -> "Generieren eines SSH-Schlüssels"
+            "es" -> "Generando una clave SSH"
+            "fr" -> "Générer une clé SSH"
+            "it" -> "Generazione di una chiave SSH"
+            "pt" -> "Gerando uma chave SSH"
+            "da" -> "Generering af en SSH-nøgle"
+            "fi" -> "SSH-avaimen luominen"
+            "kk" -> "SSH кілтін жасау"
+            "lt" -> "SSH rakto generavimas"
+            "lv" -> "SSH atslēgas ģenerēšana"
+            "ro" -> "Generarea unei chei SSH"
+            "sv" -> "Genererar en SSH-nyckel"
+            "bg" -> "Генериране на SSH ключ"
+            "cs" -> "Generování klíče SSH"
+            "el" -> "Δημιουργία κλειδιού SSH"
+            "et" -> "SSH-võtme genereerimine"
+            "hu" -> "SSH-kulcs generálása"
+            "pl" -> "Generowanie klucza SSH"
+            "sk" -> "Generovanie kľúča SSH"
+            "sl" -> "Ustvarjanje ključa SSH"
+            "tr" -> "SSH anahtarı oluşturma"
+            else -> "Generating an SSH key"
+        }
+        "Генерация ключей производится в ОЗУ. Приватный ключ будет надежно зашифрован." -> when (lang) {
+            "ru" -> "Генерация ключей производится в ОЗУ. Приватный ключ будет надежно зашифрован."
+            "uk" -> "Генерація ключів провадиться в ОЗУ. Приватний ключ буде надійно зашифровано."
+            "be" -> "Генерацыя ключоў вырабляецца ў АЗП. Прыватны ключ будзе надзейна зашыфраваны."
+            "de" -> "Schlüssel werden im RAM generiert. Der private Schlüssel wird sicher verschlüsselt."
+            "es" -> "Las claves se generan en la RAM. La clave privada se cifrará de forma segura."
+            "fr" -> "Les clés sont générées dans la RAM. La clé privée sera cryptée de manière sécurisée."
+            "it" -> "Le chiavi vengono generate nella RAM. La chiave privata verrà crittografata in modo sicuro."
+            "pt" -> "As chaves são geradas na RAM. A chave privada será criptografada com segurança."
+            "da" -> "Nøgler genereres i RAM. Den private nøgle vil være sikkert krypteret."
+            "fi" -> "Avaimet luodaan RAM-muistissa. Yksityinen avain salataan turvallisesti."
+            "kk" -> "Кілттер жедел жадта жасалады. Жеке кілт қауіпсіз шифрланады."
+            "lt" -> "Raktai generuojami RAM. Privatus raktas bus saugiai užšifruotas."
+            "lv" -> "Atslēgas tiek ģenerētas RAM. Privātā atslēga tiks droši šifrēta."
+            "ro" -> "Cheile sunt generate în RAM. Cheia privată va fi criptată în siguranță."
+            "sv" -> "Nycklar genereras i RAM. Den privata nyckeln kommer att vara säkert krypterad."
+            "bg" -> "Ключовете се генерират в RAM. Частният ключ ще бъде сигурно криптиран."
+            "cs" -> "Klíče se generují v paměti RAM. Soukromý klíč bude bezpečně zašifrován."
+            "el" -> "Τα κλειδιά δημιουργούνται στη μνήμη RAM. Το ιδιωτικό κλειδί θα είναι κρυπτογραφημένο με ασφάλεια."
+            "et" -> "Võtmed genereeritakse RAM-is. Privaatvõti krüpteeritakse turvaliselt."
+            "hu" -> "A kulcsok a RAM-ban generálódnak. A privát kulcs biztonságosan titkosítva lesz."
+            "pl" -> "Klucze generowane są w pamięci RAM. Klucz prywatny zostanie bezpiecznie zaszyfrowany."
+            "sk" -> "Kľúče sa generujú v RAM. Súkromný kľúč bude bezpečne zašifrovaný."
+            "sl" -> "Ključi se generirajo v RAM-u. Zasebni ključ bo varno šifriran."
+            "tr" -> "Anahtarlar RAM'de oluşturulur. Özel anahtar güvenli bir şekilde şifrelenecektir."
+            else -> "Keys are generated in RAM. The private key will be securely encrypted."
+        }
+        "Для большей безопасности рекомендуем позже переключиться на вход по ключу" -> when (lang) {
+            "ru" -> "Для большей безопасности рекомендуем позже переключиться на вход по ключу"
+            "uk" -> "Для більшої безпеки рекомендуємо пізніше перейти на вхід по ключу"
+            "be" -> "Для большай бяспекі рэкамендуем пазней пераключыцца на ўваход па ключы."
+            "de" -> "Für mehr Sicherheit empfehlen wir, später auf die Schlüsseleingabe umzusteigen"
+            "es" -> "Para mayor seguridad, recomendamos cambiar a la entrada de claves más adelante."
+            "fr" -> "Pour plus de sécurité, nous vous recommandons de passer ultérieurement à la saisie par clé."
+            "it" -> "Per una maggiore sicurezza, ti consigliamo di passare successivamente all'immissione con chiave"
+            "pt" -> "Para maior segurança, recomendamos mudar para a entrada de chave mais tarde"
+            "da" -> "For større sikkerhed anbefaler vi, at du skifter til nøgleindtastning senere"
+            "fi" -> "Turvallisuuden lisäämiseksi suosittelemme vaihtamaan avainten syöttämiseen myöhemmin"
+            "kk" -> "Қауіпсіздікті арттыру үшін кілт енгізуіне кейінірек ауысуды ұсынамыз"
+            "lt" -> "Siekiant didesnio saugumo, rekomenduojame vėliau pereiti prie rakto įvedimo"
+            "lv" -> "Lai nodrošinātu lielāku drošību, ieteicams vēlāk pāriet uz atslēgas ievadi"
+            "ro" -> "Pentru o mai mare securitate, vă recomandăm să treceți mai târziu la introducerea cheii"
+            "sv" -> "För större säkerhet rekommenderar vi att du byter till nyckelinmatning senare"
+            "bg" -> "За по-голяма сигурност препоръчваме да преминете към въвеждане на ключ по-късно"
+            "cs" -> "Pro větší bezpečnost doporučujeme přejít na zadávání klíče později"
+            "el" -> "Για μεγαλύτερη ασφάλεια, συνιστούμε να μεταβείτε στην εισαγωγή κλειδιού αργότερα"
+            "et" -> "Suurema turvalisuse huvides soovitame hiljem lülituda võtme sisestamisele"
+            "hu" -> "A nagyobb biztonság érdekében javasoljuk, hogy később váltson át a kulcsbevitelre"
+            "pl" -> "Dla większego bezpieczeństwa zalecamy późniejsze przejście na wprowadzanie kluczy"
+            "sk" -> "Pre väčšiu bezpečnosť odporúčame prepnúť na zadávanie kľúčom neskôr"
+            "sl" -> "Za večjo varnost priporočamo, da pozneje preklopite na vnos ključa"
+            "tr" -> "Daha fazla güvenlik için daha sonra anahtar girişine geçmenizi öneririz"
+            else -> "For greater security, we recommend switching to key entry later"
+        }
+        "Закрыть" -> when (lang) {
+            "ru" -> "Закрыть"
+            "uk" -> "Закрити"
+            "be" -> "Закрыць"
+            "de" -> "Schließen"
+            "es" -> "Cerca"
+            "fr" -> "Fermer"
+            "it" -> "Vicino"
+            "pt" -> "Fechar"
+            "da" -> "Tæt"
+            "fi" -> "Lähellä"
+            "kk" -> "Жабу"
+            "lt" -> "Uždaryti"
+            "lv" -> "Aizvērt"
+            "ro" -> "Aproape"
+            "sv" -> "Nära"
+            "bg" -> "затвори"
+            "cs" -> "Blízko"
+            "el" -> "Κοντά"
+            "et" -> "Sule"
+            "hu" -> "Közeli"
+            "pl" -> "Zamknąć"
+            "sk" -> "Zavrieť"
+            "sl" -> "Zapri"
+            "tr" -> "Kapalı"
+            else -> "Close"
+        }
+        "Запомнить пароль на устройстве" -> when (lang) {
+            "ru" -> "Запомнить пароль на устройстве"
+            "uk" -> "Запам'ятати пароль на пристрої"
+            "be" -> "Запомніць пароль на прыладзе"
+            "de" -> "Merken Sie sich das Passwort auf dem Gerät"
+            "es" -> "Recordar la contraseña en el dispositivo."
+            "fr" -> "Mémoriser le mot de passe sur l'appareil"
+            "it" -> "Ricorda la password sul dispositivo"
+            "pt" -> "Lembre-se da senha do dispositivo"
+            "da" -> "Husk adgangskoden på enheden"
+            "fi" -> "Muista laitteen salasana"
+            "kk" -> "Құрылғыдағы құпия сөзді есте сақтаңыз"
+            "lt" -> "Prisiminkite slaptažodį įrenginyje"
+            "lv" -> "Atcerieties ierīces paroli"
+            "ro" -> "Amintiți-vă parola de pe dispozitiv"
+            "sv" -> "Kom ihåg lösenordet på enheten"
+            "bg" -> "Запомнете паролата на устройството"
+            "cs" -> "Zapamatujte si heslo na zařízení"
+            "el" -> "Θυμηθείτε τον κωδικό πρόσβασης στη συσκευή"
+            "et" -> "Jäta seadme parool meelde"
+            "hu" -> "Emlékezzen az eszközön lévő jelszóra"
+            "pl" -> "Zapamiętaj hasło na urządzeniu"
+            "sk" -> "Zapamätajte si heslo na zariadení"
+            "sl" -> "Zapomnite si geslo v napravi"
+            "tr" -> "Cihazdaki şifreyi hatırla"
+            else -> "Remember the password on the device"
+        }
+        "Из файла" -> when (lang) {
+            "ru" -> "Из файла"
+            "uk" -> "З файлу"
+            "be" -> "З файла"
+            "de" -> "Aus Datei"
+            "es" -> "Desde archivo"
+            "fr" -> "À partir du fichier"
+            "it" -> "Dal fascicolo"
+            "pt" -> "Do arquivo"
+            "da" -> "Fra fil"
+            "fi" -> "Tiedostosta"
+            "kk" -> "Файлдан"
+            "lt" -> "Iš failo"
+            "lv" -> "No faila"
+            "ro" -> "Din dosar"
+            "sv" -> "Från fil"
+            "bg" -> "От файл"
+            "cs" -> "Ze souboru"
+            "el" -> "Από αρχείο"
+            "et" -> "Failist"
+            "hu" -> "Fájlból"
+            "pl" -> "Z pliku"
+            "sk" -> "Zo súboru"
+            "sl" -> "Iz datoteke"
+            "tr" -> "Dosyadan"
+            else -> "From file"
+        }
+        "Импорт" -> when (lang) {
+            "ru" -> "Импорт"
+            "uk" -> "Імпорт"
+            "be" -> "Імпарт"
+            "de" -> "Import"
+            "es" -> "Importar"
+            "fr" -> "Importer"
+            "it" -> "Importare"
+            "pt" -> "Importar"
+            "da" -> "Importere"
+            "fi" -> "Tuoda"
+            "kk" -> "Импорттау"
+            "lt" -> "Importuoti"
+            "lv" -> "Importēt"
+            "ro" -> "Import"
+            "sv" -> "Importera"
+            "bg" -> "Импортиране"
+            "cs" -> "Importovat"
+            "el" -> "Εισαγωγή"
+            "et" -> "Import"
+            "hu" -> "Importálás"
+            "pl" -> "Import"
+            "sk" -> "Importovať"
+            "sl" -> "Uvozi"
+            "tr" -> "İçe aktarmak"
+            else -> "Import"
+        }
+        "Импорт ключа" -> when (lang) {
+            "ru" -> "Импорт ключа"
+            "uk" -> "Імпорт ключа"
+            "be" -> "Імпарт ключа"
+            "de" -> "Importieren eines Schlüssels"
+            "es" -> "Importando una clave"
+            "fr" -> "Importer une clé"
+            "it" -> "Importazione di una chiave"
+            "pt" -> "Importando uma chave"
+            "da" -> "Import af en nøgle"
+            "fi" -> "Avaimen tuonti"
+            "kk" -> "Кілтті импорттау"
+            "lt" -> "Rakto importavimas"
+            "lv" -> "Atslēgas importēšana"
+            "ro" -> "Importul unei chei"
+            "sv" -> "Importera en nyckel"
+            "bg" -> "Импортиране на ключ"
+            "cs" -> "Import klíče"
+            "el" -> "Εισαγωγή κλειδιού"
+            "et" -> "Võtme importimine"
+            "hu" -> "Kulcs importálása"
+            "pl" -> "Import klucza"
+            "sk" -> "Import kľúča"
+            "sl" -> "Uvoz ključa"
+            "tr" -> "Bir anahtarı içe aktarma"
+            else -> "Importing a key"
+        }
+        "Имя ключа" -> when (lang) {
+            "ru" -> "Имя ключа"
+            "uk" -> "Ім'я ключа"
+            "be" -> "Імя ключа"
+            "de" -> "Schlüsselname"
+            "es" -> "Nombre clave"
+            "fr" -> "Nom de la clé"
+            "it" -> "Nome chiave"
+            "pt" -> "Nome da chave"
+            "da" -> "Nøglenavn"
+            "fi" -> "Avaimen nimi"
+            "kk" -> "Кілт аты"
+            "lt" -> "Rakto pavadinimas"
+            "lv" -> "Atslēgas nosaukums"
+            "ro" -> "Numele cheii"
+            "sv" -> "Nyckelnamn"
+            "bg" -> "Име на ключ"
+            "cs" -> "Název klíče"
+            "el" -> "Όνομα κλειδιού"
+            "et" -> "Võtme nimi"
+            "hu" -> "Kulcsnév"
+            "pl" -> "Nazwa klucza"
+            "sk" -> "Názov kľúča"
+            "sl" -> "Ime ključa"
+            "tr" -> "Anahtar adı"
+            else -> "Key name"
+        }
+        "Ключ для этого роутера" -> when (lang) {
+            "ru" -> "Ключ для этого роутера"
+            "uk" -> "Ключ для цього роутера"
+            "be" -> "Ключ для гэтага роўтара"
+            "de" -> "Schlüssel für diesen Router"
+            "es" -> "Clave para este enrutador"
+            "fr" -> "Clé pour ce routeur"
+            "it" -> "Chiave per questo router"
+            "pt" -> "Chave para este roteador"
+            "da" -> "Nøgle til denne router"
+            "fi" -> "Avain tälle reitittimelle"
+            "kk" -> "Бұл маршрутизатордың кілті"
+            "lt" -> "Šio maršrutizatoriaus raktas"
+            "lv" -> "Šī maršrutētāja atslēga"
+            "ro" -> "Cheie pentru acest router"
+            "sv" -> "Nyckel för denna router"
+            "bg" -> "Ключ за този рутер"
+            "cs" -> "Klíč pro tento router"
+            "el" -> "Κλειδί για αυτόν τον δρομολογητή"
+            "et" -> "Selle ruuteri võti"
+            "hu" -> "Kulcs ehhez a routerhez"
+            "pl" -> "Klucz do tego routera"
+            "sk" -> "Kľúč k tomuto smerovaču"
+            "sl" -> "Ključ za ta usmerjevalnik"
+            "tr" -> "Bu yönlendiricinin anahtarı"
+            else -> "Key for this router"
+        }
+        "Кодовая фраза ключа (если есть)" -> when (lang) {
+            "ru" -> "Кодовая фраза ключа (если есть)"
+            "uk" -> "Кодова фраза ключа (якщо є)"
+            "be" -> "Кодавая фраза ключа (калі ёсць)"
+            "de" -> "Schlüsselpassphrase (falls vorhanden)"
+            "es" -> "Frase de contraseña clave (si corresponde)"
+            "fr" -> "Phrase secrète clé (le cas échéant)"
+            "it" -> "Passphrase chiave (se presente)"
+            "pt" -> "Senha chave (se houver)"
+            "da" -> "Nøgleadgangssætning (hvis nogen)"
+            "fi" -> "Avaimen tunnuslause (jos sellainen on)"
+            "kk" -> "Негізгі құпия сөз (бар болса)"
+            "lt" -> "Rakto slaptafrazė (jei yra)"
+            "lv" -> "Atslēgas ieejas frāze (ja tāda ir)"
+            "ro" -> "Fraza de acces cheie (dacă există)"
+            "sv" -> "Nyckellösenfras (om någon)"
+            "bg" -> "Ключова фраза за достъп (ако има такава)"
+            "cs" -> "Klíčová přístupová fráze (pokud existuje)"
+            "el" -> "Βασική φράση πρόσβασης (αν υπάρχει)"
+            "et" -> "Võtme parool (kui on)"
+            "hu" -> "Kulcs jelszava (ha van)"
+            "pl" -> "Kluczowe hasło (jeśli istnieje)"
+            "sk" -> "Kľúčová prístupová fráza (ak existuje)"
+            "sl" -> "Ključno geslo (če obstaja)"
+            "tr" -> "Anahtar parolası (varsa)"
+            else -> "Key passphrase (if any)"
+        }
+        "Название ключа" -> when (lang) {
+            "ru" -> "Название ключа"
+            "uk" -> "Назва ключа"
+            "be" -> "Назва ключа"
+            "de" -> "Schlüsselname"
+            "es" -> "Nombre clave"
+            "fr" -> "Nom de la clé"
+            "it" -> "Nome chiave"
+            "pt" -> "Nome da chave"
+            "da" -> "Nøglenavn"
+            "fi" -> "Avaimen nimi"
+            "kk" -> "Кілт аты"
+            "lt" -> "Rakto pavadinimas"
+            "lv" -> "Atslēgas nosaukums"
+            "ro" -> "Numele cheii"
+            "sv" -> "Nyckelnamn"
+            "bg" -> "Име на ключ"
+            "cs" -> "Název klíče"
+            "el" -> "Όνομα κλειδιού"
+            "et" -> "Võtme nimi"
+            "hu" -> "Kulcsnév"
+            "pl" -> "Nazwa klucza"
+            "sk" -> "Názov kľúča"
+            "sl" -> "Ime ključa"
+            "tr" -> "Anahtar adı"
+            else -> "Key name"
+        }
+        "Например: домашний ноутбук" -> when (lang) {
+            "ru" -> "Например: домашний ноутбук"
+            "uk" -> "Наприклад: домашній ноутбук"
+            "be" -> "Напрыклад: хатні наўтбук"
+            "de" -> "Zum Beispiel: Heim-Laptop"
+            "es" -> "Por ejemplo: computadora portátil doméstica"
+            "fr" -> "Par exemple : ordinateur portable à la maison"
+            "it" -> "Ad esempio: laptop di casa"
+            "pt" -> "Por exemplo: laptop doméstico"
+            "da" -> "For eksempel: bærbar computer til hjemmet"
+            "fi" -> "Esimerkiksi: kodin kannettava tietokone"
+            "kk" -> "Мысалы: үйдегі ноутбук"
+            "lt" -> "Pavyzdžiui: namų nešiojamas kompiuteris"
+            "lv" -> "Piemēram: mājas klēpjdators"
+            "ro" -> "De exemplu: laptop de acasă"
+            "sv" -> "Till exempel: hembärbar dator"
+            "bg" -> "Например: домашен лаптоп"
+            "cs" -> "Například: domácí notebook"
+            "el" -> "Για παράδειγμα: οικιακός φορητός υπολογιστής"
+            "et" -> "Näiteks: kodune sülearvuti"
+            "hu" -> "Például: otthoni laptop"
+            "pl" -> "Na przykład: laptop domowy"
+            "sk" -> "Napríklad: domáci notebook"
+            "sl" -> "Na primer: domači prenosnik"
+            "tr" -> "Örneğin: ev dizüstü bilgisayarı"
+            else -> "For example: home laptop"
+        }
+        "Неверный пароль" -> when (lang) {
+            "ru" -> "Неверный пароль"
+            "uk" -> "Невірний пароль"
+            "be" -> "Няправільны пароль"
+            "de" -> "Ungültiges Passwort"
+            "es" -> "Contraseña no válida"
+            "fr" -> "Mot de passe invalide"
+            "it" -> "Password non valida"
+            "pt" -> "Senha inválida"
+            "da" -> "Ugyldig adgangskode"
+            "fi" -> "Virheellinen salasana"
+            "kk" -> "Жарамсыз құпия сөз"
+            "lt" -> "Neteisingas slaptažodis"
+            "lv" -> "Nederīga parole"
+            "ro" -> "Parolă nevalidă"
+            "sv" -> "Ogiltigt lösenord"
+            "bg" -> "Невалидна парола"
+            "cs" -> "Neplatné heslo"
+            "el" -> "Μη έγκυρος κωδικός πρόσβασης"
+            "et" -> "Vale parool"
+            "hu" -> "Érvénytelen jelszó"
+            "pl" -> "Nieprawidłowe hasło"
+            "sk" -> "Neplatné heslo"
+            "sl" -> "Neveljavno geslo"
+            "tr" -> "Geçersiz şifre"
+            else -> "Invalid password"
+        }
+        "Нет сохраненных ключей" -> when (lang) {
+            "ru" -> "Нет сохраненных ключей"
+            "uk" -> "Немає збережених ключів"
+            "be" -> "Няма захаваных ключоў"
+            "de" -> "Keine Schlüssel gespeichert"
+            "es" -> "No hay claves guardadas"
+            "fr" -> "Aucune clé enregistrée"
+            "it" -> "Nessuna chiave salvata"
+            "pt" -> "Nenhuma chave salva"
+            "da" -> "Ingen nøgler gemt"
+            "fi" -> "Avaimia ei tallennettu"
+            "kk" -> "Ешбір кілт сақталмады"
+            "lt" -> "Nėra išsaugotų raktų"
+            "lv" -> "Nav saglabāta neviena atslēga"
+            "ro" -> "Nicio cheie salvată"
+            "sv" -> "Inga nycklar sparade"
+            "bg" -> "Няма запазени ключове"
+            "cs" -> "Nejsou uloženy žádné klíče"
+            "el" -> "Δεν έχουν αποθηκευτεί κλειδιά"
+            "et" -> "Ühtegi võtmet pole salvestatud"
+            "hu" -> "Nincsenek mentve kulcsok"
+            "pl" -> "Nie zapisano żadnych kluczy"
+            "sk" -> "Nie sú uložené žiadne kľúče"
+            "sl" -> "Ni shranjenih ključev"
+            "tr" -> "Hiçbir anahtar kaydedilmedi"
+            else -> "No keys saved"
+        }
+        "Новый ключ" -> when (lang) {
+            "ru" -> "Новый ключ"
+            "uk" -> "Новий ключ"
+            "be" -> "Новы ключ"
+            "de" -> "Neuer Schlüssel"
+            "es" -> "Nueva clave"
+            "fr" -> "Nouvelle clé"
+            "it" -> "Nuova chiave"
+            "pt" -> "Nova chave"
+            "da" -> "Ny nøgle"
+            "fi" -> "Uusi avain"
+            "kk" -> "Жаңа кілт"
+            "lt" -> "Naujas raktas"
+            "lv" -> "Jauna atslēga"
+            "ro" -> "Cheie nouă"
+            "sv" -> "Ny nyckel"
+            "bg" -> "Нов ключ"
+            "cs" -> "Nový klíč"
+            "el" -> "Νέο κλειδί"
+            "et" -> "Uus võti"
+            "hu" -> "Új kulcs"
+            "pl" -> "Nowy klucz"
+            "sk" -> "Nový kľúč"
+            "sl" -> "Nov ključ"
+            "tr" -> "Yeni anahtar"
+            else -> "New key"
+        }
+        "Опции" -> when (lang) {
+            "ru" -> "Опции"
+            "uk" -> "Опції"
+            "be" -> "Опцыі"
+            "de" -> "Optionen"
+            "es" -> "Opciones"
+            "fr" -> "Possibilités"
+            "it" -> "Opzioni"
+            "pt" -> "Opções"
+            "da" -> "Valgmuligheder"
+            "fi" -> "Vaihtoehdot"
+            "kk" -> "Параметрлер"
+            "lt" -> "Parinktys"
+            "lv" -> "Iespējas"
+            "ro" -> "Opțiuni"
+            "sv" -> "Alternativ"
+            "bg" -> "Опции"
+            "cs" -> "Možnosti"
+            "el" -> "Επιλογές"
+            "et" -> "Valikud"
+            "hu" -> "Opciók"
+            "pl" -> "Opcje"
+            "sk" -> "Možnosti"
+            "sl" -> "Možnosti"
+            "tr" -> "Seçenekler"
+            else -> "Options"
+        }
+        else -> null
+    }
+}
+
+fun translateTextPart4(raw: String, lang: String): String? {
+    return when (raw) {
+        "Скачать" -> when (lang) {
+            "ru" -> "Скачать"
+            "uk" -> "Завантажити"
+            "be" -> "Спампаваць"
+            "de" -> "Herunterladen"
+            "es" -> "Descargar"
+            "fr" -> "Télécharger"
+            "it" -> "Scarica"
+            "pt" -> "Baixar"
+            "da" -> "Hent"
+            "fi" -> "ladata"
+            "kk" -> "Жүктеп алу"
+            "lt" -> "Parsisiųsti"
+            "lv" -> "Lejupielādēt"
+            "ro" -> "Descarca"
+            "sv" -> "Ladda ner"
+            "bg" -> "Изтегли"
+            "cs" -> "Stáhnout"
+            "el" -> "Λήψη"
+            "et" -> "Laadi alla"
+            "hu" -> "Letöltés"
+            "pl" -> "Pobierz"
+            "sk" -> "Stiahnuť"
+            "sl" -> "Prenesi"
+            "tr" -> "İndir"
+            else -> "Download"
+        }
+
+
+        "Пароль" -> when (lang) {
+            "ru" -> "Пароль"
+            "uk" -> "Пароль"
+            "be" -> "Пароль"
+            "de" -> "Passwort"
+            "es" -> "Contraseña"
+            "fr" -> "Mot de passe"
+            "it" -> "Password"
+            "pt" -> "Senha"
+            "da" -> "Adgangskode"
+            "fi" -> "Salasana"
+            "kk" -> "Құпия сөз"
+            "lt" -> "Slaptažodis"
+            "lv" -> "Parole"
+            "ro" -> "Parolă"
+            "sv" -> "Lösenord"
+            "bg" -> "Парола"
+            "cs" -> "Heslo"
+            "el" -> "Σύνθημα"
+            "et" -> "Parool"
+            "hu" -> "Jelszó"
+            "pl" -> "Hasło"
+            "sk" -> "heslo"
+            "sl" -> "Geslo"
+            "tr" -> "Şifre"
+            else -> "Password"
+        }
+        "Пароль для ключа (опционально)" -> when (lang) {
+            "ru" -> "Пароль для ключа (опционально)"
+            "uk" -> "Пароль для ключа (опційно)"
+            "be" -> "Пароль для ключа (апцыянальна)"
+            "de" -> "Schlüsselpasswort (optional)"
+            "es" -> "Contraseña clave (opcional)"
+            "fr" -> "Mot de passe clé (facultatif)"
+            "it" -> "Password chiave (opzionale)"
+            "pt" -> "Senha da chave (opcional)"
+            "da" -> "Nøgleadgangskode (valgfrit)"
+            "fi" -> "Avaimen salasana (valinnainen)"
+            "kk" -> "Негізгі құпия сөз (міндетті емес)"
+            "lt" -> "Rakto slaptažodis (neprivaloma)"
+            "lv" -> "Atslēgas parole (pēc izvēles)"
+            "ro" -> "Parola cheie (opțional)"
+            "sv" -> "Nyckellösenord (valfritt)"
+            "bg" -> "Ключова парола (по избор)"
+            "cs" -> "Klíčové heslo (volitelné)"
+            "el" -> "Κωδικός πρόσβασης κλειδιού (προαιρετικό)"
+            "et" -> "Võtme parool (valikuline)"
+            "hu" -> "Kulcsjelszó (opcionális)"
+            "pl" -> "Hasło klucza (opcjonalnie)"
+            "sk" -> "Kľúčové heslo (voliteľné)"
+            "sl" -> "Ključno geslo (neobvezno)"
+            "tr" -> "Anahtar şifresi (isteğe bağlı)"
+            else -> "Key password (optional)"
+        }
+        "Пароль ключа" -> when (lang) {
+            "ru" -> "Пароль ключа"
+            "uk" -> "Пароль ключа"
+            "be" -> "Пароль ключа"
+            "de" -> "Schlüsselpasswort"
+            "es" -> "Contraseña clave"
+            "fr" -> "Mot de passe clé"
+            "it" -> "Password chiave"
+            "pt" -> "Senha chave"
+            "da" -> "Nøgleadgangskode"
+            "fi" -> "Avaimen salasana"
+            "kk" -> "Негізгі құпия сөз"
+            "lt" -> "Rakto slaptažodis"
+            "lv" -> "Atslēgas parole"
+            "ro" -> "Parola cheie"
+            "sv" -> "Nyckellösenord"
+            "bg" -> "Ключова парола"
+            "cs" -> "Klíčové heslo"
+            "el" -> "Κωδικός πρόσβασης κλειδιού"
+            "et" -> "Võtme parool"
+            "hu" -> "Kulcsjelszó"
+            "pl" -> "Kluczowe hasło"
+            "sk" -> "Kľúčové heslo"
+            "sl" -> "Ključno geslo"
+            "tr" -> "Anahtar şifre"
+            else -> "Key password"
+        }
+        "DSA-ключи не поддерживаются современными версиями SSH-сервера на OpenWrt - рекомендуется ED25519, RSA или ECDSA" -> when (lang) {
+            "ru" -> "DSA-ключи не поддерживаются современными версиями SSH-сервера на OpenWrt - рекомендуется ED25519, RSA или ECDSA"
+            "uk" -> "DSA-ключі не підтримуються сучасними версіями SSH-сервера на OpenWrt - рекомендується ED25519, RSA або ECDSA"
+            "be" -> "DSA-ключы не падтрымліваюцца сучаснымі версіямі SSH-сервера на OpenWrt - рэкамендуецца ED25519, RSA або ECDSA"
+            "de" -> "DSA-Schlüssel werden von modernen SSH-Servern auf OpenWrt nicht unterstützt - ED25519, RSA oder ECDSA wird empfohlen"
+            "es" -> "Las claves DSA no son compatibles con las versiones modernas del servidor SSH en OpenWrt: se recomienda ED25519, RSA o ECDSA"
+            "fr" -> "Les clés DSA ne sont pas prises en charge par les versions modernes du serveur SSH sur OpenWrt - ED25519, RSA ou ECDSA est recommandé"
+            "it" -> "Le chiavi DSA non sono supportate dalle versioni moderne del server SSH su OpenWrt: si consiglia ED25519, RSA o ECDSA"
+            "pt" -> "Chaves DSA não são suportadas por versões modernas do servidor SSH no OpenWrt - ED25519, RSA ou ECDSA é recomendado"
+            "da" -> "DSA-nøgler understøttes ikke af moderne SSH-serverversioner på OpenWrt - ED25519, RSA eller ECDSA anbefales"
+            "fi" -> "Nykyaikaiset SSH-palvelimet OpenWrt:ssä eivät tue DSA-avaimia - suositellaan ED25519, RSA tai ECDSA"
+            "kk" -> "DSA кілттері OpenWrt-дегі SSH серверінің заманауи нұсқаларымен қолданылмайды - ED25519, RSA немесе ECDSA ұсынылады"
+            "lt" -> "DSA raktai nepalaikomi šiuolaikinėse SSH serverio versijose OpenWrt - rekomenduojama ED25519, RSA arba ECDSA"
+            "lv" -> "DSA atslēgas netiek atbalstītas modernajās SSH servera versijās uz OpenWrt - ieteicams ED25519, RSA vai ECDSA"
+            "ro" -> "Cheile DSA nu sunt acceptate de versiunile moderne ale serverului SSH de pe OpenWrt - se recomandă ED25519, RSA sau ECDSA"
+            "sv" -> "DSA-nycklar stöds inte av moderna versioner av SSH-servern på OpenWrt - ED25519, RSA eller ECDSA rekommenderas"
+            "bg" -> "DSA ключовете не се поддържат от съвременните версии на SSH сървъра на OpenWrt - препоръчват се ED25519, RSA или ECDSA"
+            "cs" -> "Klíče DSA nejsou podporovány modernými verzemi SSH serveru na OpenWrt - doporučuje se ED25519, RSA nebo ECDSA"
+            "el" -> "Τα κλειδιά DSA δεν υποστηρίζονται από τις σύγχρονες εκδόσεις του διακομιστή SSH στο OpenWrt - συνιστάται ED25519, RSA ή ECDSA"
+            "et" -> "DSA-võtmeid ei toeta OpenWrt kaasaegsed SSH-serveri versioonid - soovitatav on ED25519, RSA või ECDSA"
+            "hu" -> "A DSA kulcsokat nem támogatják a modern SSH szerver verziók az OpenWrt-n - ED25519, RSA vagy ECDSA ajánlott"
+            "pl" -> "Klucze DSA nie są obsługiwane przez nowoczesne wersje serwera SSH w systemie OpenWrt - zalecane jest ED25519, RSA lub ECDSA"
+            "sk" -> "Kľúče DSA nie sú podporované modernými verziami SSH servera na OpenWrt - odporúča sa ED25519, RSA alebo ECDSA"
+            "sl" -> "Ključi DSA niso podprti v sodobnih različicah strežnika SSH na OpenWrt - priporoča se ED25519, RSA ali ECDSA"
+            "tr" -> "DSA anahtarları OpenWrt'deki modern SSH sunucu sürümleri tarafından desteklenmemektedir - ED25519, RSA veya ECDSA önerilir"
+            else -> "DSA keys are not supported by modern versions of the SSH server on OpenWrt - ED25519, RSA, or ECDSA is recommended"
+        }
+        "Понятно" -> when (lang) {
+            "ru" -> "Понятно"
+            "uk" -> "Зрозуміло"
+            "be" -> "Зразумела"
+            "de" -> "Verstanden"
+            "es" -> "Entendido"
+            "fr" -> "Compris"
+            "it" -> "Capito"
+            "pt" -> "Entendido"
+            "da" -> "Forstået"
+            "fi" -> "Selvä"
+            "kk" -> "Түсінікті"
+            "lt" -> "Supratau"
+            "lv" -> "Skaidrs"
+            "ro" -> "Am înțeles"
+            "sv" -> "Förstått"
+            "bg" -> "Разбрах"
+            "cs" -> "Rozumím"
+            "el" -> "Κατανοητό"
+            "et" -> "Selge"
+            "hu" -> "Értem"
+            "pl" -> "Rozumiem"
+            "sk" -> "Rozumiem"
+            "sl" -> "Razumem"
+            "tr" -> "Anladım"
+            else -> "Got it"
+        }
+        "Внимание" -> when (lang) {
+            "ru" -> "Внимание"
+            "uk" -> "Увага"
+            "be" -> "Увага"
+            "de" -> "Achtung"
+            "es" -> "Atención"
+            "fr" -> "Attention"
+            "it" -> "Attenzione"
+            "pt" -> "Atenção"
+            "da" -> "Opmærksomhed"
+            "fi" -> "Huomio"
+            "kk" -> "Назар аударыңыз"
+            "lt" -> "Dėmesio"
+            "lv" -> "Uzmanību"
+            "ro" -> "Atenție"
+            "sv" -> "Uppmärksamhet"
+            "bg" -> "Внимание"
+            "cs" -> "Pozor"
+            "el" -> "Προσοχή"
+            "et" -> "Tähelepanu"
+            "hu" -> "Figyelem"
+            "pl" -> "Uwaga"
+            "sk" -> "Pozor"
+            "sl" -> "Pozor"
+            "tr" -> "Dikkat"
+            else -> "Attention"
+        }
+        "Показать пароль" -> when (lang) {
+            "ru" -> "Показать пароль"
+            "uk" -> "Показати пароль"
+            "be" -> "Паказаць пароль"
+            "de" -> "Passwort anzeigen"
+            "es" -> "Mostrar contraseña"
+            "fr" -> "Afficher le mot de passe"
+            "it" -> "Mostra password"
+            "pt" -> "Mostrar senha"
+            "da" -> "Vis adgangskode"
+            "fi" -> "Näytä salasana"
+            "kk" -> "Құпиясөзді көрсету"
+            "lt" -> "Rodyti slaptažodį"
+            "lv" -> "Rādīt paroli"
+            "ro" -> "Arată parola"
+            "sv" -> "Visa lösenord"
+            "bg" -> "Покажи паролата"
+            "cs" -> "Zobrazit heslo"
+            "el" -> "Εμφάνιση κωδικού"
+            "et" -> "Näita parooli"
+            "hu" -> "Jelszó megjelenítése"
+            "pl" -> "Pokaż hasło"
+            "sk" -> "Zobraziť heslo"
+            "sl" -> "Prikaži geslo"
+            "tr" -> "Şifreyi göster"
+            else -> "Show password"
+        }
+        "Скрыть пароль" -> when (lang) {
+            "ru" -> "Скрыть пароль"
+            "uk" -> "Приховати пароль"
+            "be" -> "Схаваць пароль"
+            "de" -> "Passwort verbergen"
+            "es" -> "Ocultar contraseña"
+            "fr" -> "Masquer le mot de passe"
+            "it" -> "Nascondi password"
+            "pt" -> "Ocultar senha"
+            "da" -> "Skjul adgangskode"
+            "fi" -> "Piilota salasana"
+            "kk" -> "Құпиясөзді жасыру"
+            "lt" -> "Slėpti slaptažodį"
+            "lv" -> "Paslēpt paroli"
+            "ro" -> "Ascunde parola"
+            "sv" -> "Dölj lösenord"
+            "bg" -> "Скрий паролата"
+            "cs" -> "Skrýt heslo"
+            "el" -> "Απόκρυψη κωδικού"
+            "et" -> "Peida parool"
+            "hu" -> "Jelszó elrejtése"
+            "pl" -> "Ukryj hasło"
+            "sk" -> "Skryť heslo"
+            "sl" -> "Skrij geslo"
+            "tr" -> "Şifreyi gizle"
+            else -> "Hide password"
+        }
+        "Вставьте сюда текст ключа" -> when (lang) {
+            "ru" -> "Вставьте сюда текст ключа"
+            "uk" -> "Вставте сюди текст ключа"
+            "be" -> "Устаўце сюды тэкст ключа"
+            "de" -> "Schlüsseltext hier einfügen"
+            "es" -> "Pegue el texto de la clave aquí"
+            "fr" -> "Collez le texte de la clé ici"
+            "it" -> "Incolla qui il testo della chiave"
+            "pt" -> "Cole o texto da chave aqui"
+            "da" -> "Indsæt nøgle tekst her"
+            "fi" -> "Liitä avaimen teksti tähän"
+            "kk" -> "Кілт мәтінін осыған қойыңыз"
+            "lt" -> "Įklijuokite rakto tekstą čia"
+            "lv" -> "Ielīmējiet atslēgas tekstu šeit"
+            "ro" -> "Lipiți textul cheii aici"
+            "sv" -> "Klistra in nyckeltext här"
+            "bg" -> "Поставете текста на ключа тук"
+            "cs" -> "Vložte sem text klíče"
+            "el" -> "Επικολλήστε το κείμενο του κλειδιού εδώ"
+            "et" -> "Kleepige võtme tekst siia"
+            "hu" -> "Illessze be a kulcs szövegét ide"
+            "pl" -> "Wklej tekst klucza tutaj"
+            "sk" -> "Sem vložte text kľúča"
+            "sl" -> "Tukaj prilepite besedilo ključa"
+            "tr" -> "Anahtar metnini buraya yapıştırın"
+            else -> "Paste key text here"
+        }
+        "Пароль подходит" -> when (lang) {
+            "ru" -> "Пароль подходит"
+            "uk" -> "Пароль підходить"
+            "be" -> "Пароль падыходзіць"
+            "de" -> "Das Passwort ist korrekt"
+            "es" -> "La contraseña es correcta"
+            "fr" -> "Le mot de passe est correct"
+            "it" -> "La password è corretta"
+            "pt" -> "A senha está correta"
+            "da" -> "Adgangskoden er korrekt"
+            "fi" -> "Salasana on oikea"
+            "kk" -> "Құпия сөз дұрыс"
+            "lt" -> "Slaptažodis teisingas"
+            "lv" -> "Parole ir pareiza"
+            "ro" -> "Parola este corectă"
+            "sv" -> "Lösenordet är korrekt"
+            "bg" -> "Паролата е правилна"
+            "cs" -> "Heslo je správné"
+            "el" -> "Ο κωδικός πρόσβασης είναι σωστός"
+            "et" -> "Parool on õige"
+            "hu" -> "A jelszó helyes"
+            "pl" -> "Hasło jest prawidłowe"
+            "sk" -> "Heslo je správne"
+            "sl" -> "Geslo je pravilno"
+            "tr" -> "Şifre doğru"
+            else -> "The password is correct"
+        }
+        "Поделиться" -> when (lang) {
+            "ru" -> "Поделиться"
+            "uk" -> "Поділитися"
+            "be" -> "Падзяліцца"
+            "de" -> "Aktie"
+            "es" -> "Compartir"
+            "fr" -> "Partager"
+            "it" -> "Condividere"
+            "pt" -> "Compartilhar"
+            "da" -> "Dele"
+            "fi" -> "Jakaa"
+            "kk" -> "Бөлісу"
+            "lt" -> "Dalintis"
+            "lv" -> "Dalīties"
+            "ro" -> "Distribuie"
+            "sv" -> "Dela"
+            "bg" -> "Споделете"
+            "cs" -> "Podíl"
+            "el" -> "Μερίδιο"
+            "et" -> "Jaga"
+            "hu" -> "Részesedés"
+            "pl" -> "Udział"
+            "sk" -> "zdieľať"
+            "sl" -> "Delite"
+            "tr" -> "Paylaşmak"
+            else -> "Share"
+        }
+        "Поделиться публичным ключом" -> when (lang) {
+            "ru" -> "Поделиться публичным ключом"
+            "uk" -> "Поділитися публічним ключем"
+            "be" -> "Падзяліцца публічным ключом"
+            "de" -> "Öffentlichen Schlüssel teilen"
+            "es" -> "Compartir clave pública"
+            "fr" -> "Partager la clé publique"
+            "it" -> "Condividi la chiave pubblica"
+            "pt" -> "Compartilhar chave pública"
+            "da" -> "Del offentlig nøgle"
+            "fi" -> "Jaa julkinen avain"
+            "kk" -> "Ашық кілтті бөлісіңіз"
+            "lt" -> "Bendrinkite viešąjį raktą"
+            "lv" -> "Kopīgojiet publisko atslēgu"
+            "ro" -> "Partajați cheia publică"
+            "sv" -> "Dela offentlig nyckel"
+            "bg" -> "Споделяне на публичен ключ"
+            "cs" -> "Sdílejte veřejný klíč"
+            "el" -> "Κοινή χρήση δημόσιου κλειδιού"
+            "et" -> "Jagage avalikku võtit"
+            "hu" -> "Nyilvános kulcs megosztása"
+            "pl" -> "Udostępnij klucz publiczny"
+            "sk" -> "Zdieľať verejný kľúč"
+            "sl" -> "Delite javni ključ"
+            "tr" -> "Ortak anahtarı paylaş"
+            else -> "Share public key"
+        }
+        "После добавления ключа зайдите на роутер в браузере или терминале по паролю, чтобы добавить его" -> when (lang) {
+            "ru" -> "После добавления ключа зайдите на роутер в браузере или терминале по паролю, чтобы добавить его"
+            "uk" -> "Після додавання ключа зайдіть на роутер у браузері або терміналі за паролем, щоб додати його"
+            "be" -> "Пасля дадання ключа зайдзіце на роўтэр у браўзэры або тэрмінале па паролі, каб дадаць яго"
+            "de" -> "Nachdem Sie den Schlüssel hinzugefügt haben, gehen Sie in einem Browser oder Terminal zum Router und geben Sie das Passwort ein, um ihn hinzuzufügen"
+            "es" -> "Después de agregar la clave, vaya al enrutador en un navegador o terminal usando la contraseña para agregarla"
+            "fr" -> "Après avoir ajouté la clé, accédez au routeur dans un navigateur ou un terminal en utilisant le mot de passe pour l'ajouter"
+            "it" -> "Dopo aver aggiunto la chiave, vai al router in un browser o terminale utilizzando la password per aggiungerla"
+            "pt" -> "Após adicionar a chave, acesse o roteador em um navegador ou terminal usando a senha para adicioná-la"
+            "da" -> "Når du har tilføjet nøglen, skal du gå til routeren i en browser eller terminal ved at bruge adgangskoden for at tilføje den"
+            "fi" -> "Kun olet lisännyt avaimen, siirry reitittimeen selaimessa tai päätteessä lisäämään se salasanalla"
+            "kk" -> "Кілтті қосқаннан кейін оны қосу үшін құпия сөзді пайдаланып браузерде немесе терминалда маршрутизаторға өтіңіз"
+            "lt" -> "Pridėję raktą eikite į maršrutizatorių naršyklėje arba terminale naudodami slaptažodį, kad jį pridėtumėte"
+            "lv" -> "Pēc atslēgas pievienošanas pārejiet uz maršrutētāju pārlūkprogrammā vai terminālī, izmantojot paroli, lai to pievienotu"
+            "ro" -> "După ce ați adăugat cheia, mergeți la router într-un browser sau terminal folosind parola pentru ao adăuga"
+            "sv" -> "När du har lagt till nyckeln, gå till routern i en webbläsare eller terminal med lösenordet för att lägga till den"
+            "bg" -> "След като добавите ключа, отидете до рутера в браузър или терминал, като използвате паролата, за да го добавите"
+            "cs" -> "Po přidání klíče přejděte do routeru v prohlížeči nebo terminálu pomocí hesla a přidejte jej"
+            "el" -> "Αφού προσθέσετε το κλειδί, μεταβείτε στο δρομολογητή σε ένα πρόγραμμα περιήγησης ή τερματικό χρησιμοποιώντας τον κωδικό πρόσβασης για να το προσθέσετε"
+            "et" -> "Pärast võtme lisamist minge brauseris või terminalis ruuteri juurde, kasutades selle lisamiseks parooli"
+            "hu" -> "A kulcs hozzáadása után lépjen az útválasztóhoz egy böngészőben vagy terminálban a jelszó hozzáadásához"
+            "pl" -> "Po dodaniu klucza przejdź do routera w przeglądarce lub terminalu używając hasła, aby go dodać"
+            "sk" -> "Po pridaní kľúča prejdite v prehliadači alebo termináli na smerovač pomocou hesla a pridajte ho"
+            "sl" -> "Ko dodate ključ, pojdite na usmerjevalnik v brskalniku ali terminalu z geslom, da ga dodate"
+            "tr" -> "Anahtarı ekledikten sonra, eklemek için şifreyi kullanarak bir tarayıcıda veya terminalde yönlendiriciye gidin"
+            else -> "After adding the key, go to the router in a browser or terminal using the password to add it"
+        }
+        "Приватный ключ" -> when (lang) {
+            "ru" -> "Приватный ключ"
+            "uk" -> "Приватний ключ"
+            "be" -> "Прыватны ключ"
+            "de" -> "Privater Schlüssel"
+            "es" -> "clave privada"
+            "fr" -> "Clé privée"
+            "it" -> "Chiave privata"
+            "pt" -> "Chave privada"
+            "da" -> "Privat nøgle"
+            "fi" -> "Yksityinen avain"
+            "kk" -> "Жеке кілт"
+            "lt" -> "Privatus raktas"
+            "lv" -> "Privātā atslēga"
+            "ro" -> "Cheie privată"
+            "sv" -> "Privat nyckel"
+            "bg" -> "Личен ключ"
+            "cs" -> "Soukromý klíč"
+            "el" -> "Ιδιωτικό κλειδί"
+            "et" -> "Privaatvõti"
+            "hu" -> "Privát kulcs"
+            "pl" -> "Klucz prywatny"
+            "sk" -> "Súkromný kľúč"
+            "sl" -> "Zasebni ključ"
+            "tr" -> "Özel anahtar"
+            else -> "Private key"
+        }
+        "Примечание: для ED25519 пароль ключа не поддерживается" -> when (lang) {
+            "ru" -> "Примечание: для ED25519 пароль ключа не поддерживается"
+            "uk" -> "Примітка: для ED25519 пароль ключа не підтримується"
+            "be" -> "Заўвага: для ED25519 пароль ключа не падтрымліваецца"
+            "de" -> "Hinweis: ED25519 unterstützt kein Schlüsselkennwort"
+            "es" -> "Nota: ED25519 no admite contraseña clave"
+            "fr" -> "Remarque : ED25519 ne prend pas en charge le mot de passe clé"
+            "it" -> "Nota: ED25519 non supporta la password della chiave"
+            "pt" -> "Nota: ED25519 não suporta senha de chave"
+            "da" -> "Bemærk: ED25519 understøtter ikke nøgleadgangskode"
+            "fi" -> "Huomautus: ED25519 ei tue avaimen salasanaa"
+            "kk" -> "Ескертпе: ED25519 кілт құпия сөзін қолдамайды"
+            "lt" -> "Pastaba: ED25519 nepalaiko rakto slaptažodžio"
+            "lv" -> "Piezīme: ED25519 neatbalsta atslēgas paroli"
+            "ro" -> "Notă: ED25519 nu acceptă parola cheie"
+            "sv" -> "Obs: ED25519 stöder inte nyckellösenord"
+            "bg" -> "Забележка: ED25519 не поддържа ключова парола"
+            "cs" -> "Poznámka: ED25519 nepodporuje klíčové heslo"
+            "el" -> "Σημείωση: Το ED25519 δεν υποστηρίζει κωδικό πρόσβασης κλειδιού"
+            "et" -> "Märkus. ED25519 ei toeta võtme parooli"
+            "hu" -> "Megjegyzés: Az ED25519 nem támogatja a kulcsjelszót"
+            "pl" -> "Uwaga: ED25519 nie obsługuje hasła klucza"
+            "sk" -> "Poznámka: ED25519 nepodporuje kľúčové heslo"
+            "sl" -> "Opomba: ED25519 ne podpira ključnega gesla"
+            "tr" -> "Not: ED25519 anahtar şifresini desteklemiyor"
+            else -> "Note: ED25519 does not support key password"
+        }
+        "Публичная часть не найдена — пожалуйста, вставьте её вручную" -> when (lang) {
+            "ru" -> "Публичная часть не найдена — пожалуйста, вставьте её вручную"
+            "uk" -> "Публічну частину не знайдено — будь ласка, вставте її вручну"
+            "be" -> "Публічная частка не знойдзена - калі ласка, устаўце яе ўручную"
+            "de" -> "Öffentlicher Teil nicht gefunden – bitte manuell einfügen"
+            "es" -> "Parte pública no encontrada: insértela manualmente"
+            "fr" -> "Partie publique introuvable : veuillez l'insérer manuellement"
+            "it" -> "Parte pubblica non trovata: inseriscila manualmente"
+            "pt" -> "Parte pública não encontrada - insira-a manualmente"
+            "da" -> "Offentlig del ikke fundet - indsæt den manuelt"
+            "fi" -> "Julkista osaa ei löydy - lisää se manuaalisesti"
+            "kk" -> "Қоғамдық бөлік табылмады - оны қолмен енгізіңіз"
+            "lt" -> "Viešoji dalis nerasta – įdėkite ją rankiniu būdu"
+            "lv" -> "Publiskā daļa nav atrasta — lūdzu, ievietojiet to manuāli"
+            "ro" -> "Partea publică nu a fost găsită - introduceți-o manual"
+            "sv" -> "Offentlig del hittades inte - vänligen infoga den manuellt"
+            "bg" -> "Обществената част не е намерена - моля, поставете я ръчно"
+            "cs" -> "Veřejná část nenalezena – vložte ji prosím ručně"
+            "el" -> "Το δημόσιο τμήμα δεν βρέθηκε - εισάγετέ το χειροκίνητα"
+            "et" -> "Avalikku osa ei leitud – palun sisestage see käsitsi"
+            "hu" -> "Nyilvános rész nem található – kérjük, helyezze be kézzel"
+            "pl" -> "Nie znaleziono części publicznej - wstaw ją ręcznie"
+            "sk" -> "Verejná časť sa nenašla - vložte ju ručne"
+            "sl" -> "Javnega dela ni bilo mogoče najti - vstavite ga ročno"
+            "tr" -> "Genel bölüm bulunamadı - lütfen manuel olarak ekleyin"
+            else -> "Public part not found - please insert it manually"
+        }
+        "Публичный ключ" -> when (lang) {
+            "ru" -> "Публичный ключ"
+            "uk" -> "Публічний ключ"
+            "be" -> "Публічны ключ"
+            "de" -> "Öffentlicher Schlüssel"
+            "es" -> "Clave pública"
+            "fr" -> "Clé publique"
+            "it" -> "Chiave pubblica"
+            "pt" -> "Chave pública"
+            "da" -> "Offentlig nøgle"
+            "fi" -> "Julkinen avain"
+            "kk" -> "Ашық кілт"
+            "lt" -> "Viešasis raktas"
+            "lv" -> "Publiskā atslēga"
+            "ro" -> "Cheie publică"
+            "sv" -> "Offentlig nyckel"
+            "bg" -> "Публичен ключ"
+            "cs" -> "Veřejný klíč"
+            "el" -> "Δημόσιο κλειδί"
+            "et" -> "Avalik võti"
+            "hu" -> "Nyilvános kulcs"
+            "pl" -> "Klucz publiczny"
+            "sk" -> "Verejný kľúč"
+            "sl" -> "Javni ključ"
+            "tr" -> "Ortak anahtar"
+            else -> "Public key"
+        }
+        "Публичный ключ скопирован" -> when (lang) {
+            "ru" -> "Публичный ключ скопирован"
+            "uk" -> "Публічний ключ скопійовано"
+            "be" -> "Публічны ключ скапіяваны"
+            "de" -> "Öffentlicher Schlüssel kopiert"
+            "es" -> "Clave pública copiada"
+            "fr" -> "Clé publique copiée"
+            "it" -> "Chiave pubblica copiata"
+            "pt" -> "Chave pública copiada"
+            "da" -> "Offentlig nøgle kopieret"
+            "fi" -> "Julkinen avain kopioitu"
+            "kk" -> "Ашық кілт көшірілді"
+            "lt" -> "Viešasis raktas nukopijuotas"
+            "lv" -> "Publiskā atslēga ir nokopēta"
+            "ro" -> "Cheia publică a fost copiată"
+            "sv" -> "Offentlig nyckel kopierad"
+            "bg" -> "Публичният ключ е копиран"
+            "cs" -> "Veřejný klíč zkopírován"
+            "el" -> "Το δημόσιο κλειδί αντιγράφηκε"
+            "et" -> "Avalik võti on kopeeritud"
+            "hu" -> "Nyilvános kulcs másolva"
+            "pl" -> "Klucz publiczny skopiowany"
+            "sk" -> "Verejný kľúč bol skopírovaný"
+            "sl" -> "Javni ključ je kopiran"
+            "tr" -> "Ortak anahtar kopyalandı"
+            else -> "Public key copied"
+        }
+        "Публичный ключ (добавьте на роутер)" -> when (lang) {
+            "ru" -> "Публичный ключ (добавьте на роутер)"
+            "uk" -> "Публічний ключ (додайте на роутер)"
+            "be" -> "Публічны ключ (дадайце на роўтэр)"
+            "de" -> "Öffentlicher Schlüssel (auf Router hinzufügen)"
+            "es" -> "Clave pública (agregar al enrutador)"
+            "fr" -> "Clé publique (ajouter au routeur)"
+            "it" -> "Chiave pubblica (aggiungi al router)"
+            "pt" -> "Chave pública (adicionar ao roteador)"
+            "da" -> "Offentlig nøgle (tilføj til router)"
+            "fi" -> "Julkinen avain (lisää reitittimeen)"
+            "kk" -> "Ашық кілт (маршрутизаторға қосу)"
+            "lt" -> "Viešasis raktas (pridėti prie maršrutizatoriaus)"
+            "lv" -> "Publiskā atslēga (pievienot maršrutētājam)"
+            "ro" -> "Cheie publică (adăugați pe router)"
+            "sv" -> "Offentlig nyckel (lägg till i router)"
+            "bg" -> "Публичен ключ (добавете в рутера)"
+            "cs" -> "Veřejný klíč (přidejte do routeru)"
+            "el" -> "Δημόσιο κλειδί (προσθήκη στον δρομολογητή)"
+            "et" -> "Avalik võti (lisa ruuterisse)"
+            "hu" -> "Nyilvános kulcs (hozzáadás az útválasztóhoz)"
+            "pl" -> "Klucz publiczny (dodaj do routera)"
+            "sk" -> "Verejný kľúč (pridať do smerovača)"
+            "sl" -> "Javni ključ (dodaj na usmerjevalnik)"
+            "tr" -> "Genel anahtar (yönlendiriciye ekle)"
+            else -> "Public key (add to router)"
+        }
+        "Сгенерировать" -> when (lang) {
+            "ru" -> "Сгенерировать"
+            "uk" -> "Згенерувати"
+            "be" -> "Згенераваць"
+            "de" -> "Erzeugen"
+            "es" -> "Generar"
+            "fr" -> "Générer"
+            "it" -> "Generare"
+            "pt" -> "Gerar"
+            "da" -> "Frembringe"
+            "fi" -> "Luo"
+            "kk" -> "Жасау"
+            "lt" -> "Generuoti"
+            "lv" -> "Ģenerēt"
+            "ro" -> "Genera"
+            "sv" -> "Generera"
+            "bg" -> "Генерирай"
+            "cs" -> "Generovat"
+            "el" -> "Παράγω"
+            "et" -> "Genereeri"
+            "hu" -> "Generál"
+            "pl" -> "Spowodować"
+            "sk" -> "Generovať"
+            "sl" -> "Ustvari"
+            "tr" -> "Oluştur"
+            else -> "Generate"
+        }
+        "Скопировать" -> when (lang) {
+            "ru" -> "Скопировать"
+            "uk" -> "Копіювати"
+            "be" -> "Скапіяваць"
+            "de" -> "Kopie"
+            "es" -> "Copiar"
+            "fr" -> "Copie"
+            "it" -> "Copia"
+            "pt" -> "Cópia"
+            "da" -> "Kopi"
+            "fi" -> "Kopioida"
+            "kk" -> "Көшіру"
+            "lt" -> "Kopijuoti"
+            "lv" -> "Kopēt"
+            "ro" -> "Copie"
+            "sv" -> "Kopiera"
+            "bg" -> "копие"
+            "cs" -> "Kopie"
+            "el" -> "Αντίγραφο"
+            "et" -> "Kopeeri"
+            "hu" -> "Másolat"
+            "pl" -> "Kopia"
+            "sk" -> "Kopírovať"
+            "sl" -> "Kopiraj"
+            "tr" -> "Kopyala"
+            else -> "Copy"
+        }
+        "Сохранить" -> when (lang) {
+            "ru" -> "Сохранить"
+            "uk" -> "Зберегти"
+            "be" -> "Захаваць"
+            "de" -> "Speichern"
+            "es" -> "Ahorrar"
+            "fr" -> "Sauvegarder"
+            "it" -> "Salva"
+            "pt" -> "Salvar"
+            "da" -> "Spare"
+            "fi" -> "Tallentaa"
+            "kk" -> "Сақтау"
+            "lt" -> "Išsaugoti"
+            "lv" -> "Saglabāt"
+            "ro" -> "Salva"
+            "sv" -> "Spara"
+            "bg" -> "Запазване"
+            "cs" -> "Uložit"
+            "el" -> "Εκτός"
+            "et" -> "Salvesta"
+            "hu" -> "Megtakarítás"
+            "pl" -> "Ratować"
+            "sk" -> "Uložiť"
+            "sl" -> "Shrani"
+            "tr" -> "Kaydetmek"
+            else -> "Save"
+        }
+        "Способ входа" -> when (lang) {
+            "ru" -> "Способ входа"
+            "uk" -> "Спосіб входу"
+            "be" -> "Спосаб уваходу"
+            "de" -> "Anmeldemethode"
+            "es" -> "Método de inicio de sesión"
+            "fr" -> "Méthode de connexion"
+            "it" -> "Metodo di accesso"
+            "pt" -> "Método de login"
+            "da" -> "Login metode"
+            "fi" -> "Kirjautumistapa"
+            "kk" -> "Жүйеге кіру әдісі"
+            "lt" -> "Prisijungimo būdas"
+            "lv" -> "Pieteikšanās metode"
+            "ro" -> "Metoda de conectare"
+            "sv" -> "Inloggningsmetod"
+            "bg" -> "Метод за влизане"
+            "cs" -> "Způsob přihlášení"
+            "el" -> "Μέθοδος σύνδεσης"
+            "et" -> "Sisselogimismeetod"
+            "hu" -> "Bejelentkezési mód"
+            "pl" -> "Metoda logowania"
+            "sk" -> "Spôsob prihlásenia"
+            "sl" -> "Način prijave"
+            "tr" -> "Giriş yöntemi"
+            else -> "Login method"
+        }
+        "Текстом" -> when (lang) {
+            "ru" -> "Текстом"
+            "uk" -> "текстом"
+            "be" -> "Тэкстам"
+            "de" -> "Per Text"
+            "es" -> "Por texto"
+            "fr" -> "Par SMS"
+            "it" -> "Per testo"
+            "pt" -> "Por texto"
+            "da" -> "Med tekst"
+            "fi" -> "Tekstillä"
+            "kk" -> "Мәтін бойынша"
+            "lt" -> "Pagal tekstą"
+            "lv" -> "Pēc teksta"
+            "ro" -> "Prin text"
+            "sv" -> "Med text"
+            "bg" -> "По текст"
+            "cs" -> "Podle textu"
+            "el" -> "Με κείμενο"
+            "et" -> "Teksti järgi"
+            "hu" -> "Szöveg által"
+            "pl" -> "Tekstem"
+            "sk" -> "Textom"
+            "sl" -> "Po besedilu"
+            "tr" -> "Metne göre"
+            else -> "By text"
+        }
+        "Управление SSH-ключами" -> when (lang) {
+            "ru" -> "Управление SSH-ключами"
+            "uk" -> "Управління SSH-ключами"
+            "be" -> "Упраўленне SSH-ключамі"
+            "de" -> "SSH-Schlüsselverwaltung"
+            "es" -> "Gestión de claves SSH"
+            "fr" -> "Gestion des clés SSH"
+            "it" -> "Gestione delle chiavi SSH"
+            "pt" -> "Gerenciamento de chaves SSH"
+            "da" -> "SSH Key Management"
+            "fi" -> "SSH-avainhallinta"
+            "kk" -> "SSH кілтін басқару"
+            "lt" -> "SSH raktų valdymas"
+            "lv" -> "SSH atslēgu pārvaldība"
+            "ro" -> "Managementul cheilor SSH"
+            "sv" -> "SSH nyckelhantering"
+            "bg" -> "Управление на SSH ключове"
+            "cs" -> "Správa klíčů SSH"
+            "el" -> "Διαχείριση κλειδιών SSH"
+            "et" -> "SSH võtmehaldus"
+            "hu" -> "SSH kulcskezelés"
+            "pl" -> "Zarządzanie kluczami SSH"
+            "sk" -> "Správa kľúčov SSH"
+            "sl" -> "Upravljanje ključev SSH"
+            "tr" -> "SSH Anahtar Yönetimi"
+            else -> "SSH Key Management"
+        }
+        "Файл публичного ключа не найден" -> when (lang) {
+            "ru" -> "Файл публичного ключа не найден"
+            "uk" -> "Файл публічного ключа не знайдено"
+            "be" -> "Файл публічнага ключа не знойдзены"
+            "de" -> "Öffentliche Schlüsseldatei nicht gefunden"
+            "es" -> "Archivo de clave pública no encontrado"
+            "fr" -> "Fichier de clé publique introuvable"
+            "it" -> "File della chiave pubblica non trovato"
+            "pt" -> "Arquivo de chave pública não encontrado"
+            "da" -> "Offentlig nøglefil blev ikke fundet"
+            "fi" -> "Julkisen avaimen tiedostoa ei löydy"
+            "kk" -> "Ашық кілт файлы табылмады"
+            "lt" -> "Viešojo rakto failas nerastas"
+            "lv" -> "Publiskās atslēgas fails nav atrasts"
+            "ro" -> "Fișierul cheii publice nu a fost găsit"
+            "sv" -> "Den offentliga nyckelfilen hittades inte"
+            "bg" -> "Файлът с публичен ключ не е намерен"
+            "cs" -> "Soubor veřejného klíče nebyl nalezen"
+            "el" -> "Το αρχείο δημόσιου κλειδιού δεν βρέθηκε"
+            "et" -> "Avaliku võtme faili ei leitud"
+            "hu" -> "A nyilvános kulcsfájl nem található"
+            "pl" -> "Nie znaleziono pliku klucza publicznego"
+            "sk" -> "Súbor verejného kľúča sa nenašiel"
+            "sl" -> "Datoteke z javnim ključem ni mogoče najti"
+            "tr" -> "Ortak anahtar dosyası bulunamadı"
+            else -> "Public key file not found"
+        }
+        else -> null
+    }
+}
+
+
 
 fun Modifier.drawScrollbar(state: androidx.compose.foundation.lazy.LazyListState): Modifier = this.drawWithContent {
     drawContent()

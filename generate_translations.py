@@ -1,53 +1,79 @@
-import sys
 import json
+
+phrases = [
+    "Android application for managing OpenWrt routers.",
+    "Connected",
+    "ED25519 ключи с паролем не поддерживаются библиотекой JSch. Вы не сможете использовать этот ключ.",
+    "IP адрес / Хост",
+    "Openwrt Router Control",
+    "Test connection",
+    "Алгоритм",
+    "Версия",
+    "Вход по SSH ключу",
+    "Вход по паролю",
+    "Генерация SSH-ключа",
+    "Генерация ключей производится в ОЗУ. Приватный ключ будет надежно зашифрован.",
+    "Для большей безопасности рекомендуем позже переключиться на вход по ключу",
+    "Добавить новый роутер",
+    "Доступно обновление",
+    "Закрыть",
+    "Запомнить пароль на устройстве",
+    "Из файла",
+    "Импорт ключа",
+    "Имя ключа",
+    "Имя пользователя",
+    "Имя профиля",
+    "Ключ для этого роутера",
+    "Кодовая фраза ключа (если есть)",
+    "Название ключа",
+    "Найдена новая версия:",
+    "Например: домашний ноутбук",
+    "Неверный пароль",
+    "Нет настроенных роутеров",
+    "Нет сохраненных ключей",
+    "Новый ключ",
+    "Обновить",
+    "О приложении",
+    "Опции",
+    "Отмена",
+    "Ошибка при проверке обновлений",
+    "Пароль",
+    "Пароль для ключа (опционально)",
+    "Пароль ключа",
+    "Пароль подходит",
+    "Поделиться",
+    "Поделиться публичным ключом",
+    "Пожалуйста, добавьте первый профиль роутера для продолжения.",
+    "Порт",
+    "После добавления ключа зайдите на роутер в браузере или терминале по паролю, чтобы добавить его",
+    "Приватный ключ",
+    "Примечание: для ED25519 пароль ключа не поддерживается",
+    "Проверить обновление",
+    "Публичная часть не найдена — пожалуйста, вставьте её вручную",
+    "Публичный ключ",
+    "Публичный ключ скопирован",
+    "Публичный ключ (скопируйте на роутер)",
+    "Редактировать",
+    "Сгенерировать",
+    "Скопировать",
+    "Сохраненные роутеры",
+    "Сохранить",
+    "Сохранить профиль",
+    "Способ входа",
+    "Текстом",
+    "У вас установлена последняя версия",
+    "Удалить",
+    "Управление SSH-ключами",
+    "Файл публичного ключа не найден",
+    "Формат распознан"
+]
 
 langs = ["ru", "uk", "be", "de", "es", "fr", "it", "pt", "da", "fi", "kk", "lt", "lv", "sv"]
 
-title_ru = "Управление"
-title_translations = {
-    "ru": "Управление",
-    "uk": "Керування",
-    "be": "Кіраванне",
-    "de": "Steuerung",
-    "es": "Control",
-    "fr": "Contrôle",
-    "it": "Controllo",
-    "pt": "Controle",
-    "da": "Styring",
-    "fi": "Hallinta",
-    "kk": "Басқару",
-    "lt": "Valdymas",
-    "lv": "Vadība",
-    "sv": "Kontroll"
-}
+print("Generated code for translations:")
 
-body_ru = "Проведите пальцем вдоль левого или правого края рамки, чтобы выбрать команду из истории команд. Проведите пальцем вдоль верхнего или нижнего края рамки, чтобы перемещать курсор в строке команды."
-body_translations = {
-    "ru": "Проведите пальцем вдоль левого или правого края рамки, чтобы выбрать команду из истории команд. Проведите пальцем вдоль верхнего или нижнего края рамки, чтобы перемещать курсор в строке команды.",
-    "uk": "Проведіть пальцем вздовж лівого або правого краю рамки, щоб вибрати команду з історії команд. Проведіть пальцем вздовж верхнього або нижнього краю рамки, щоб переміщати курсор у рядку команди.",
-    "be": "Правядзіце пальцам уздоўж левага або правага краю рамкі, каб выбраць каманду з гісторыі каманд. Правядзіце пальцам уздоўж верхняга або ніжняга краю рамкі, каб перамяшчаць курсор у радку каманды.",
-    "de": "Wischen Sie am linken oder rechten Rand entlang, um einen Befehl aus dem Verlauf auszuwählen. Wischen Sie am oberen oder unteren Rand entlang, um den Cursor in der Befehlszeile zu bewegen.",
-    "es": "Desliza a lo largo del borde izquierdo o derecho para seleccionar un comando del historial. Desliza a lo largo del borde superior o inferior para mover el cursor en la línea de comando.",
-    "fr": "Balayez le long du bord gauche ou droit pour sélectionner une commande dans l'historique. Balayez le long du bord supérieur ou inférieur pour déplacer le curseur dans la ligne de commande.",
-    "it": "Scorri lungo il bordo sinistro o destro per selezionare un comando dalla cronologia. Scorri lungo il bordo superiore o inferiore per spostare il cursore nella riga di comando.",
-    "pt": "Deslize ao longo da borda esquerda ou direita para selecionar um comando do histórico. Deslize ao longo da borda superior ou inferior para mover o cursor na linha de comando.",
-    "da": "Stryg langs venstre eller højre kant for at vælge en kommando fra historikken. Stryg langs øverste eller nederste kant for at flytte markøren i kommandolinjen.",
-    "fi": "Pyyhkäise vasenta tai oikeaa reunaa pitkin valitaksesi komennon historiasta. Pyyhkäise ylä- tai alareunaa pitkin siirtääksesi kohdistinta komentorivillä.",
-    "kk": "Пәрмендер тарихынан пәрменді таңдау үшін жақтаудың сол немесе оң жақ шетімен сырғытыңыз. Пәрмен жолында курсорды жылжыту үшін жақтаудың жоғарғы немесе төменгі шетімен сырғытыңыз.",
-    "lt": "Braukite kairiuoju arba dešiniuoju kraštu, kad pasirinktumėte komandą iš istorijos. Braukite viršutiniu arba apatiniu kraštu, kad perkeltumėte žymeklį komandų eilutėje.",
-    "lv": "Pārvelciet gar kreiso vai labo malu, lai izvēlētos komandu no vēstures. Pārvelciet gar augšējo vai apakšējo malu, lai pārvietotu kursoru komandrindā.",
-    "sv": "Svep längs vänster eller höger kant för att välja ett kommando från historiken. Svep längs övre eller nedre kanten för att flytta markören på kommandoraden."
-}
-
-def print_func(name, tr, default):
-    print(f"    fun {name}(lang: String): String {{")
-    print(f"        return when (lang) {{")
-    for l in langs:
-        print(f"            \"{l}\" -> \"{tr[l]}\"")
-    print(f"            else -> \"{default}\"")
-    print(f"        }}")
-    print(f"    }}")
-
-print_func("getConsoleTipTitle", title_translations, "Control")
-print_func("getConsoleTipBody", body_translations, "Swipe along the left or right edge to select a command from the history. Swipe along the top or bottom edge to move the cursor in the command line.")
+def mock_translate(ru_text, lang):
+    # This is a naive translation mock. I'll just leave them in Russian or auto-translate if I can.
+    # Actually, I should probably call an API to translate them, or just use python translators?
+    pass
 

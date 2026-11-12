@@ -1,0 +1,659 @@
+     1	package com.example.ui
+     2	
+     3	import android.content.ClipData
+     4	import android.content.ClipboardManager
+     5	import androidx.core.content.FileProvider
+     6	import android.content.Intent
+     7	import java.io.File
+     8	import android.content.Context
+     9	import android.widget.Toast
+    10	import com.jcraft.jsch.JSch
+    11	import androidx.compose.ui.unit.sp
+    12	import androidx.compose.material.icons.filled.Upload
+    13	import androidx.compose.material.icons.filled.ContentPaste
+    14	import androidx.compose.material.icons.filled.InsertDriveFile
+    15	import androidx.compose.material.icons.filled.CheckCircle
+    16	import androidx.compose.material.icons.filled.Warning
+    17	import androidx.compose.material.icons.filled.Error
+    18	import androidx.compose.material.icons.filled.Info
+    19	import androidx.compose.foundation.background
+    20	import androidx.compose.foundation.clickable
+    21	import androidx.compose.foundation.layout.*
+    22	import androidx.compose.foundation.lazy.LazyColumn
+    23	import androidx.compose.foundation.lazy.items
+    24	import androidx.compose.foundation.shape.RoundedCornerShape
+    25	import androidx.compose.material.icons.Icons
+    26	import androidx.compose.material.icons.filled.Add
+    27	import androidx.compose.material.icons.filled.Check
+    28	import androidx.compose.material.icons.filled.ContentCopy
+    29	import androidx.compose.material.icons.filled.Delete
+    30	import androidx.compose.material.icons.filled.MoreVert
+    31	import androidx.compose.material.icons.filled.Share
+    32	import androidx.compose.material3.*
+    33	import androidx.compose.runtime.*
+    34	import androidx.compose.ui.Alignment
+    35	import androidx.compose.ui.Modifier
+    36	import androidx.compose.ui.graphics.Color
+    37	import androidx.compose.ui.platform.LocalContext
+    38	import androidx.compose.ui.text.font.FontWeight
+    39	import androidx.compose.ui.text.style.TextOverflow
+    40	import androidx.compose.ui.unit.dp
+    41	import androidx.compose.ui.window.Dialog
+    42	import androidx.compose.ui.window.DialogProperties
+    43	import com.example.data.RouterDatabase
+    44	import com.example.data.SshKeyEntity
+    45	import com.example.data.SshKeyManager
+    46	import com.example.translateText
+    47	import com.jcraft.jsch.KeyPair
+    48	import kotlinx.coroutines.launch
+    49	
+    50	@OptIn(ExperimentalMaterial3Api::class)
+    51	@Composable
+    52	fun SshKeyManagerDialog(
+    53	    onDismiss: () -> Unit,
+    54	    onSelectKey: (Long?) -> Unit,
+    55	    selectedKeyId: Long?
+    56	) {
+    57	    val context = LocalContext.current
+    58	    val coroutineScope = rememberCoroutineScope()
+    59	    var keys by remember { mutableStateOf<List<SshKeyEntity>>(emptyList()) }
+    60	    var isGenerating by remember { mutableStateOf(false) }
+    61	    var showImportDialog by remember { mutableStateOf(false) }
+    62	    var showGenerateDialog by remember { mutableStateOf(false) }
+    63	
+    64	    LaunchedEffect(Unit) {
+    65	        val db = RouterDatabase.getDatabase(context)
+    66	        db.sshKeyDao().getAllKeysFlow().collect {
+    67	            keys = it
+    68	        }
+    69	    }
+    70	
+    71	    Dialog(
+    72	        onDismissRequest = onDismiss,
+    73	        properties = DialogProperties(usePlatformDefaultWidth = false)
+    74	    ) {
+    75	        Surface(
+    76	            modifier = Modifier
+    77	                .fillMaxWidth(0.9f)
+    78	                .fillMaxHeight(0.8f),
+    79	            shape = RoundedCornerShape(16.dp),
+    80	            color = MaterialTheme.colorScheme.surface
+    81	        ) {
+    82	            Column(modifier = Modifier.padding(16.dp)) {
+    83	                Text(
+    84	                    text = translateText("Управление SSH-ключами", context),
+    85	                    style = MaterialTheme.typography.titleLarge,
+    86	                    fontWeight = FontWeight.Bold,
+    87	                    modifier = Modifier.padding(bottom = 16.dp)
+    88	                )
+    89	
+    90	                if (keys.isEmpty()) {
+    91	                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+    92	                        Text(translateText("Нет сохраненных ключей", context), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    93	                    }
+    94	                } else {
+    95	                    LazyColumn(modifier = Modifier.weight(1f)) {
+    96	                        item {
+    97	                            ListItem(
+    98	                                headlineContent = { Text(translateText("Вход по паролю", context)) },
+    99	                                modifier = Modifier.clickable { onSelectKey(null) },
+   100	                                trailingContent = {
+   101	                                    if (selectedKeyId == null) {
+   102	                                        Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+   103	                                    }
+   104	                                }
+   105	                            )
+   106	                            Divider()
+   107	                        }
+   108	                        items(keys) { key ->
+   109	                            ListItem(
+   110	                                headlineContent = { Text(key.alias, fontWeight = FontWeight.Bold) },
+   111	                                supportingContent = { 
+   112	                                    Column {
+   113	                                        Text("${key.algorithm} • ${key.fingerprintSha256}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+   114	                                    }
+   115	                                },
+   116	                                modifier = Modifier.clickable { onSelectKey(key.id) },
+   117	                                trailingContent = {
+   118	                                    Row(verticalAlignment = Alignment.CenterVertically) {
+   119	                                        if (selectedKeyId == key.id) {
+   120	                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+   121	                                        }
+   122	                                        var menuExpanded by remember { mutableStateOf(false) }
+   123	                                        Box {
+   124	                                            IconButton(onClick = { menuExpanded = true }) {
+   125	                                                Icon(Icons.Default.MoreVert, contentDescription = translateText("Опции", context))
+   126	                                            }
+   127	                                            DropdownMenu(
+   128	                                                expanded = menuExpanded,
+   129	                                                onDismissRequest = { menuExpanded = false }
+   130	                                            ) {
+   131	                                                DropdownMenuItem(
+   132	                                                    text = { Text(translateText("Скопировать", context)) },
+   133	                                                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+   134	                                                    onClick = {
+   135	                                                        menuExpanded = false
+   136	                                                        coroutineScope.launch {
+   137	                                                            val pubKey = SshKeyManager(context).loadPublicKeyString(key.id)
+   138	                                                            if (pubKey != null) {
+   139	                                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+   140	                                                                clipboard.setPrimaryClip(ClipData.newPlainText("SSH Public Key", pubKey))
+   141	                                                                Toast.makeText(context, translateText("Публичный ключ скопирован", context), Toast.LENGTH_SHORT).show()
+   142	                                                            }
+   143	                                                        }
+   144	                                                    }
+   145	                                                )
+   146	                                                DropdownMenuItem(
+   147	                                                    text = { Text(translateText("Поделиться", context)) },
+   148	                                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+   149	                                                    onClick = {
+   150	                                                        menuExpanded = false
+   151	                                                        val pubFile = File(File(context.filesDir, ".ssh"), "id_${key.id}.pub")
+   152	                                                        if (pubFile.exists()) {
+   153	                                                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", pubFile)
+   154	                                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+   155	                                                                type = "text/plain"
+   156	                                                                putExtra(Intent.EXTRA_STREAM, uri)
+   157	                                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+   158	                                                            }
+   159	                                                            context.startActivity(Intent.createChooser(shareIntent, translateText("Поделиться публичным ключом", context)))
+   160	                                                        } else {
+   161	                                                            Toast.makeText(context, translateText("Файл публичного ключа не найден", context), Toast.LENGTH_SHORT).show()
+   162	                                                        }
+   163	                                                    }
+   164	                                                )
+   165	                                                DropdownMenuItem(
+   166	                                                    text = { Text(translateText("Удалить", context), color = MaterialTheme.colorScheme.error) },
+   167	                                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+   168	                                                    onClick = {
+   169	                                                        menuExpanded = false
+   170	                                                        coroutineScope.launch {
+   171	                                                            SshKeyManager(context).deleteKeyFiles(key.id)
+   172	                                                            if (selectedKeyId == key.id) {
+   173	                                                                onSelectKey(null)
+   174	                                                            }
+   175	                                                        }
+   176	                                                    }
+   177	                                                )
+   178	                                            }
+   179	                                        }
+   180	                                    }
+   181	                          Spacer(modifier = Modifier.height(16.dp))
+   182	
+   183	                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+   184	                    Button(
+   185	                        onClick = { showImportDialog = true },
+   186	                        modifier = Modifier.weight(1f).height(48.dp),
+   187	                        colors = ButtonDefaults.buttonColors(
+   188	                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+   189	                            contentColor = MaterialTheme.colorScheme.onSurface
+   190	                        )
+   191	                    ) {
+   192	                        Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(18.dp))
+   193	                        Spacer(modifier = Modifier.width(8.dp))
+   194	                        Text(translateText("Импорт ключа", context), fontSize = 13.sp)
+   195	                    }
+   196	                    Button(
+   197	                        onClick = { showGenerateDialog = true },
+   198	                        modifier = Modifier.weight(1f).height(48.dp)
+   199	                    ) {
+   200	                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+   201	                        Spacer(modifier = Modifier.width(8.dp))
+   202	                        Text(translateText("Новый ключ", context), fontSize = 13.sp)
+   203	                    }
+   204	                }
+   205	                Spacer(modifier = Modifier.height(8.dp))
+   206	                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+   207	                    Text(translateText("Закрыть", context))
+   208	                }
+   209	            }
+   210	        }
+   211	    }
+   212	
+   213	    if (showImportDialog) {
+   214	        ImportKeyDialog(onDismiss = { showImportDialog = false }, onImport = { id -> 
+   215	            onSelectKey(id)
+   216	            showImportDialog = false
+   217	        })
+   218	    }
+   219	
+   220	    if (showGenerateDialog) {
+   221	        var newAlias by remember { mutableStateOf("My Key") }
+   222	        var algorithm by remember { mutableStateOf(KeyPair.ED25519) }
+   223	        var passphrase by remember { mutableStateOf("") }
+   224	        var isAlgorithmDropdownExpanded by remember { mutableStateOf(false) }
+   225	
+   226	        AlertDialog(
+   227	            onDismissRequest = { if (!isGenerating) showGenerateDialog = false },
+   228	            title = { Text(translateText("Генерация SSH-ключа", context)) },
+   229	            text = {
+   230	                Column {
+   231	                    OutlinedTextField(
+   232	                        value = newAlias,
+   233	                        onValueChange = { newAlias = it },
+   234	                        label = { Text(translateText("Имя ключа", context)) },
+   235	                        modifier = Modifier.fillMaxWidth(),
+   236	                        singleLine = true
+   237	                    )
+   238	                    Spacer(modifier = Modifier.height(8.dp))
+   239	                    
+   240	                    ExposedDropdownMenuBox(
+   241	                        expanded = isAlgorithmDropdownExpanded,
+   242	                        onExpandedChange = { isAlgorithmDropdownExpanded = !isAlgorithmDropdownExpanded }
+   243	                    ) {
+   244	                        OutlinedTextField(
+   245	                            value = if (algorithm == KeyPair.ED25519) "ED25519" else "RSA 2048",
+   246	                            onValueChange = {},
+   247	                            readOnly = true,
+   248	                            label = { Text(translateText("Алгоритм", context)) },
+   249	                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isAlgorithmDropdownExpanded) },
+   250	                            modifier = Modifier.menuAnchor().fillMaxWidth()
+   251	                        )
+   252	                        ExposedDropdownMenu(
+   253	                            expanded = isAlgorithmDropdownExpanded,
+   254	                            onDismissRequest = { isAlgorithmDropdownExpanded = false }
+   255	                        ) {
+   256	                            DropdownMenuItem(
+   257	                                text = { Text("ED25519 (Рекомендуется)") },
+   258	                                onClick = { algorithm = KeyPair.ED25519; isAlgorithmDropdownExpanded = false }
+   259	                            )
+   260	                            DropdownMenuItem(
+   261	                    Text(
+   262	                        text = translateText("Генерация ключей производится в ОЗУ. Приватный ключ будет надежно зашифрован.", context) +
+   263	                               if (algorithm == KeyPair.ED25519) "\n\n" + translateText("Примечание: для ED25519 пароль ключа не поддерживается", context) else "",
+   264	                        style = MaterialTheme.typography.bodySmall,
+   265	                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+   266	                        modifier = Modifier.padding(top = 8.dp)
+   267	                    )
+   268	                }
+   269	            },
+   270	            },
+   271	                            try {
+   272	                                val manager = SshKeyManager(context)
+   273	                                val entity = manager.generateAndSaveKey(
+   274	                                    alias = newAlias,
+   275	                                    algorithm = algorithm,
+   276	                                    passphrase = passphrase.ifEmpty { null }
+   277	                                )
+   278	                                onSelectKey(entity.id)
+   279	                                showGenerateDialog = false
+   280	                            } catch (e: Throwable) {
+   281	                                e.printStackTrace()
+   282	                                Toast.makeText(context, "Error: ${e.message ?: e.toString()}", Toast.LENGTH_LONG).show()
+   283	                            } finally {
+   284	                                isGenerating = false
+   285	                            }
+   286	                        }
+   287	                    },
+   288	                    enabled = !isGenerating && newAlias.isNotBlank()
+   289	                ) {
+   290	                    if (isGenerating) {
+   291	                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+   292	                    } else {
+   293	                        Text(translateText("Сгенерировать", context))
+   294	                    }
+   295	                }
+   296	            },
+   297	            dismissButton = {
+   298	                if (!isGenerating) {
+   299	                    TextButton(onClick = { showGenerateDialog = false }) {
+   300	                        Text(translateText("Отмена", context))
+   301	                    }
+   302	                }
+   303	            }
+   304	        )
+   305	    }
+   306	}
+   307	
+   308	@OptIn(ExperimentalMaterial3Api::class)
+   309	@Composable
+   310	fun ImportKeyDialog(
+   311	    onDismiss: () -> Unit,
+   312	    onKeyImported: (Long) -> Unit
+   313	) {
+   314	    val context = LocalContext.current
+   315	    val coroutineScope = rememberCoroutineScope()
+   316	    
+   317	    var inputMode by remember { mutableStateOf(1) } // 0 = file, 1 = text
+   318	    var privateKeyText by remember { mutableStateOf("") }
+   319	    var privateKeyBytes by remember { mutableStateOf<ByteArray?>(null) }
+   320	    var fileName by remember { mutableStateOf<String?>(null) }
+   321	    
+   322	    var alias by remember { mutableStateOf("") }
+   323	    var passphrase by remember { mutableStateOf("") }
+   324	    var publicKeyText by remember { mutableStateOf("") }
+   325	    
+   326	    var parsedKeyType by remember { mutableStateOf<Int?>(null) }
+   327	    var isEncrypted by remember { mutableStateOf(false) }
+   328	    var isDecrypted by remember { mutableStateOf(true) }
+   329	    
+   330	    var errorMsg by remember { mutableStateOf<String?>(null) }
+   331	    
+   332	    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri: android.net.Uri? ->
+   333	        if (uri != null) {
+   334	            try {
+   335	                val inputStream = context.contentResolver.openInputStream(uri)
+   336	                val bytes = inputStream?.readBytes()
+   337	                inputStream?.close()
+   338	                if (bytes != null) {
+   339	                    privateKeyBytes = bytes
+   340	                    fileName = uri.path?.substringAfterLast('/') ?: "file"
+   341	                    inputMode = 0
+   342	                }
+   343	            } catch (e: Exception) {
+   344	                errorMsg = "Ошибка чтения файла: ${e.message}"
+   345	            }
+   346	        }
+   347	    }
+   348	    
+   349	    LaunchedEffect(privateKeyText, privateKeyBytes, inputMode) {
+   350	        val bytes = if (inputMode == 1) {
+   351	            if (privateKeyText.isNotBlank()) privateKeyText.toByteArray(Charsets.UTF_8) else null
+   352	        } else {
+   353	            privateKeyBytes
+   354	        }
+   355	        
+   356	        if (bytes == null || bytes.isEmpty()) {
+   357	            parsedKeyType = null
+   358	            isEncrypted = false
+   359	            isDecrypted = true
+   360	            errorMsg = null
+   361	            return@LaunchedEffect
+   362	        }
+   363	        
+   364	        try {
+   365	            val jsch = JSch()
+   366	            val kp = KeyPair.load(jsch, bytes, null)
+   367	            parsedKeyType = kp.keyType
+   368	            isEncrypted = kp.isEncrypted
+   369	            isDecrypted = !kp.isEncrypted
+   370	            errorMsg = null
+   371	            
+   372	            if (!kp.isEncrypted) {
+   373	                val pubOut = java.io.ByteArrayOutputStream()
+   374	                kp.writePublicKey(pubOut, "imported-key")
+   375	                val pubStr = String(pubOut.toByteArray())
+   376	                if (pubStr.isNotBlank()) {
+   377	                    publicKeyText = pubStr
+   378	                }
+   379	            }
+   380	            kp.dispose()
+   381	        } catch (e: Exception) {
+   382	            parsedKeyType = null
+   383	            isEncrypted = false
+   384	            isDecrypted = true
+   385	            errorMsg = "Не удалось распознать формат ключа"
+   386	        }
+   387	    }
+   388	    
+   389	    LaunchedEffect(passphrase, parsedKeyType, isEncrypted) {
+   390	        if (isEncrypted && passphrase.isNotEmpty()) {
+   391	            val bytes = if (inputMode == 1) privateKeyText.toByteArray(Charsets.UTF_8) else privateKeyBytes
+   392	            if (bytes != null) {
+   393	                try {
+   394	                    val jsch = JSch()
+   395	                    val kp = KeyPair.load(jsch, bytes, null)
+   396	                    if (kp.decrypt(passphrase)) {
+   397	                        isDecrypted = true
+   398	                        errorMsg = null
+   399	                        val pubOut = java.io.ByteArrayOutputStream()
+   400	                        kp.writePublicKey(pubOut, "imported-key")
+   401	                        val pubStr = String(pubOut.toByteArray())
+   402	                        if (pubStr.isNotBlank() && publicKeyText.isBlank()) {
+   403	                            publicKeyText = pubStr
+   404	                        }
+   405	                    } else {
+   406	                        isDecrypted = false
+   407	                    }
+   408	                    kp.dispose()
+   409	                } catch (e: Exception) {
+   410	                    isDecrypted = false
+   411	                }
+   412	            }
+   413	        }
+   414	    }
+   415	    
+   416	    var isSaving by remember { mutableStateOf(false) }
+   417	    
+   418	    Dialog(
+   419	        onDismissRequest = { if (!isSaving) onDismiss() },
+   420	        properties = DialogProperties(usePlatformDefaultWidth = false)
+   421	    ) {
+   422	        Surface(
+   423	            modifier = Modifier
+   424	                .fillMaxWidth(0.95f)
+   425	                .fillMaxHeight(0.95f),
+   426	            shape = RoundedCornerShape(16.dp),
+   427	            color = MaterialTheme.colorScheme.surface
+   428	        ) {
+   429	            Column(modifier = Modifier.padding(16.dp)) {
+   430	                Text(
+   431	                    text = translateText("Импорт ключа", context),
+   432	                    style = MaterialTheme.typography.titleLarge,
+   433	                    fontWeight = FontWeight.Bold,
+   434	                    modifier = Modifier.padding(bottom = 16.dp)
+   435	                )
+   436	                
+   437	                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+   438	                    Button(
+   439	                        onClick = { launcher.launch("*/*") },
+   440	                        modifier = Modifier.weight(1f).height(40.dp),
+   441	                        contentPadding = PaddingValues(0.dp),
+   442	                        colors = ButtonDefaults.buttonColors(
+   443	                            containerColor = if (inputMode == 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+   444	                            contentColor = if (inputMode == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+   445	                        ),
+   446	                        shape = RoundedCornerShape(20.dp),
+   447	                        border = if (inputMode == 0) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+   448	                    ) {
+   449	                        Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
+   450	                        Spacer(modifier = Modifier.width(8.dp))
+   451	                        Text(translateText("Из файла", context), fontSize = 13.sp)
+   452	                    }
+   453	                    Button(
+   454	                        onClick = { inputMode = 1 },
+   455	                        modifier = Modifier.weight(1f).height(40.dp),
+   456	                        contentPadding = PaddingValues(0.dp),
+   457	                        colors = ButtonDefaults.buttonColors(
+   458	                            containerColor = if (inputMode == 1) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+   459	                            contentColor = if (inputMode == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+   460	                        ),
+   461	                        shape = RoundedCornerShape(20.dp),
+   462	                        border = if (inputMode == 1) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+   463	                    ) {
+   464	                        Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
+   465	                        Spacer(modifier = Modifier.width(8.dp))
+   466	                        Text(translateText("Текстом", context), fontSize = 13.sp)
+   467	                    }
+   468	                }
+   469	                
+   470	                Spacer(modifier = Modifier.height(16.dp))
+   471	                
+   472	                val scrollState = androidx.compose.foundation.rememberScrollState()
+   473	                Column(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
+   474	                    
+   475	                    if (inputMode == 1) {
+   476	                        OutlinedTextField(
+   477	                            value = privateKeyText,
+   478	                            onValueChange = { privateKeyText = it },
+   479	                            label = { Text(translateText("Приватный ключ", context)) },
+   480	                            modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 200.dp),
+   481	                            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp)
+   482	                        )
+   483	                        Spacer(modifier = Modifier.height(8.dp))
+   484	                    } else if (fileName != null) {
+   485	                        Row(
+   486	                            modifier = Modifier
+   487	                                .fillMaxWidth()
+   488	                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+   489	                                .padding(12.dp),
+   490	                            verticalAlignment = Alignment.CenterVertically
+   491	                        ) {
+   492	                            Icon(Icons.Default.InsertDriveFile, contentDescription = null)
+   493	                            Spacer(modifier = Modifier.width(12.dp))
+   494	                            Text(fileName!!, style = MaterialTheme.typography.bodyMedium)
+   495	                        }
+   496	                        Spacer(modifier = Modifier.height(8.dp))
+   497	                    }
+   498	                    
+   499	                    if (parsedKeyType != null) {
+   500	                        val typeName = when(parsedKeyType) {
+   501	                            KeyPair.RSA -> "RSA"
+   502	                            KeyPair.DSA -> "DSA"
+   503	                            KeyPair.ECDSA -> "ECDSA"
+   504	                            KeyPair.ED25519 -> "ED25519"
+   505	                            else -> "UNKNOWN"
+   506	                        }
+   507	                        Row(
+   508	                            modifier = Modifier
+   509	                                .fillMaxWidth()
+   510	                                .background(androidx.compose.ui.graphics.Color(0xFF1C2E23), RoundedCornerShape(8.dp))
+   511	                                .padding(12.dp),
+   512	                            verticalAlignment = Alignment.CenterVertically
+   513	                        ) {
+   514	                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFF6FD394))
+   515	                            Spacer(modifier = Modifier.width(12.dp))
+   516	                            Column {
+   517	                                Text(translateText("Формат распознан", context), fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color(0xFF6FD394), fontSize = 14.sp)
+   518	                                Text(typeName, color = androidx.compose.ui.graphics.Color(0xFF6FD394), fontSize = 12.sp)
+   519	                            }
+   520	                        }
+   521	                        Spacer(modifier = Modifier.height(12.dp))
+   522	                        
+   523	                        if (isEncrypted) {
+   524	                            if (parsedKeyType == KeyPair.ED25519) {
+   525	                                Row(
+   526	                                    modifier = Modifier
+   527	                                        .fillMaxWidth()
+   528	                                        .background(androidx.compose.ui.graphics.Color(0xFF331818), RoundedCornerShape(8.dp))
+   529	                                        .padding(12.dp),
+   530	                                    verticalAlignment = Alignment.CenterVertically
+   531	                                ) {
+   532	                                    Icon(Icons.Default.Warning, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFFF05E5E))
+   533	                                    Spacer(modifier = Modifier.width(12.dp))
+   534	                                    Text(
+   535	                                        text = translateText("ED25519 ключи с паролем не поддерживаются библиотекой JSch. Вы не сможете использовать этот ключ.", context),
+   536	                                        style = MaterialTheme.typography.bodySmall,
+   537	                                        color = androidx.compose.ui.graphics.Color(0xFFF05E5E)
+   538	                                    )
+   539	                                }
+   540	                                Spacer(modifier = Modifier.height(12.dp))
+   541	                            }
+   542	                            
+   543	                            OutlinedTextField(
+   544	                                value = passphrase,
+   545	                                onValueChange = { passphrase = it },
+   546	                                label = { Text(translateText("Пароль ключа", context)) },
+   547	                                singleLine = true,
+   548	                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+   549	                                modifier = Modifier.fillMaxWidth()
+   550	                            )
+   551	                            Spacer(modifier = Modifier.height(4.dp))
+   552	                            if (passphrase.isNotEmpty()) {
+   553	                                if (isDecrypted) {
+   554	                                    Text(translateText("Пароль подходит", context), color = androidx.compose.ui.graphics.Color(0xFF6FD394), fontSize = 12.sp)
+   555	                                } else {
+   556	                                    Text(translateText("Неверный пароль", context), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+   557	                                }
+   558	                            }
+   559	                            Spacer(modifier = Modifier.height(12.dp))
+   560	                        }
+   561	                    } else if (errorMsg != null && ((inputMode == 1 && privateKeyText.isNotBlank()) || (inputMode == 0 && privateKeyBytes != null))) {
+   562	                        Row(
+   563	                            modifier = Modifier
+   564	                                .fillMaxWidth()
+   565	                                .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(8.dp))
+   566	                                .padding(12.dp),
+   567	                            verticalAlignment = Alignment.CenterVertically
+   568	                        ) {
+   569	                            Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+   570	                            Spacer(modifier = Modifier.width(12.dp))
+   571	                            Text(errorMsg!!, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+   572	                        }
+   573	                        Spacer(modifier = Modifier.height(12.dp))
+   574	                    }
+   575	                    
+   576	                    OutlinedTextField(
+   577	                        value = alias,
+   578	                        onValueChange = { alias = it },
+   579	                        label = { Text(translateText("Название ключа", context)) },
+   580	                        placeholder = { Text(translateText("Например: домашний ноутбук", context)) },
+   581	                        singleLine = true,
+   582	                        modifier = Modifier.fillMaxWidth()
+   583	                    )
+   584	                    Spacer(modifier = Modifier.height(12.dp))
+   585	                    
+   586	                    if (publicKeyText.isBlank() && parsedKeyType != null) {
+   587	                        Row(
+   588	                            modifier = Modifier
+   589	                                .fillMaxWidth()
+   590	                                .background(androidx.compose.ui.graphics.Color(0xFF332A18), RoundedCornerShape(8.dp))
+   591	                                .padding(12.dp),
+   592	                            verticalAlignment = Alignment.CenterVertically
+   593	                        ) {
+   594	                            Icon(Icons.Default.Info, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFFF0B95E))
+   595	                            Spacer(modifier = Modifier.width(12.dp))
+   596	                            Text(
+   597	                                text = translateText("Публичная часть не найдена — пожалуйста, вставьте её вручную", context),
+   598	                                style = MaterialTheme.typography.bodySmall,
+   599	                                color = androidx.compose.ui.graphics.Color(0xFFF0B95E)
+   600	                            )
+   601	                        }
+   602	                        Spacer(modifier = Modifier.height(8.dp))
+   603	                    }
+   604	                    
+   605	                    OutlinedTextField(
+   606	                        value = publicKeyText,
+   607	                        onValueChange = { publicKeyText = it },
+   608	                        label = { Text(translateText("Публичный ключ", context)) },
+   609	                        placeholder = { Text("ssh-rsa AAAA...") },
+   610	                        modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp),
+   611	                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp)
+   612	                    )
+   613	                }
+   614	                
+   615	                Spacer(modifier = Modifier.height(16.dp))
+   616	                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+   617	                    TextButton(onClick = onDismiss, enabled = !isSaving) {
+   618	                        Text(translateText("Отмена", context))
+   619	                    }
+   620	                    Spacer(modifier = Modifier.width(8.dp))
+   621	                    Button(
+   622	                        onClick = {
+   623	                            isSaving = true
+   624	                            coroutineScope.launch {
+   625	                                try {
+   626	                                    val manager = SshKeyManager(context)
+   627	                                    val bytes = if (inputMode == 1) privateKeyText.toByteArray(Charsets.UTF_8) else privateKeyBytes
+   628	                                    if (bytes == null) throw Exception("Нет данных ключа")
+   629	                                    
+   630	                                    val finalPub = if (publicKeyText.isNotBlank()) publicKeyText else null
+   631	                                    
+   632	                                    val entity = manager.importAndSaveKey(
+   633	                                        alias = alias.ifBlank { "Imported Key" },
+   634	                                        privateKeyBytes = bytes,
+   635	                                        publicKeyString = finalPub,
+   636	                                        passphrase = passphrase.ifEmpty { null }
+   637	                                    )
+   638	                                    onKeyImported(entity.id)
+   639	                                    onDismiss()
+   640	                                } catch (e: Exception) {
+   641	                                    Toast.makeText(context, "Ошибка сохранения: ${e.message}", Toast.LENGTH_LONG).show()
+   642	                                } finally {
+   643	                                    isSaving = false
+   644	                                }
+   645	                            }
+   646	                        },
+   647	                        enabled = !isSaving && isDecrypted && alias.isNotBlank() && parsedKeyType != null && (parsedKeyType != KeyPair.ED25519 || !isEncrypted)
+   648	                    ) {
+   649	                        if (isSaving) {
+   650	                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+   651	                        } else {
+   652	                            Text(translateText("Сохранить", context))
+   653	                        }
+   654	                    }
+   655	                }
+   656	            }
+   657	        }
+   658	    }
+   659	}

@@ -28,6 +28,7 @@ data class RouterConfig(
     val port: Int = 22,
     val username: String,
     val sshKeyOrPassword: String,
+    val sshKeyId: Long? = null,
     val ledBehavior: String = "always_on",
     val wgInterface: String = "wg0",
     val openVpnService: String = "openvpn",

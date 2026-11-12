@@ -27,8 +27,6 @@ class RouterWidgetProvider : AppWidgetProvider() {
         private const val ACTION_TOGGLE_WIREGUARD = "com.example.widget.ACTION_TOGGLE_WIREGUARD"
         private const val ACTION_TOGGLE_LED = "com.example.widget.ACTION_TOGGLE_LED"
 
-        private var lastOpenVpnState: Boolean? = null
-        private var lastWireGuardState: Boolean? = null
         private var lastLedState: Boolean? = null
 
         private var lastOpenVpnText: String = "Инициализация..."
@@ -36,7 +34,11 @@ class RouterWidgetProvider : AppWidgetProvider() {
         private var lastLedText: String = "Инициализация..."
 
         // Single shared SSH client manager to keep connections alive and prevent socket leaks
-        private val sharedSsh = SshClientManager()
+        private var sharedSshInstance: SshClientManager? = null
+        private fun getSharedSsh(context: android.content.Context): SshClientManager {
+            if (sharedSshInstance == null) sharedSshInstance = SshClientManager(context.applicationContext)
+            return sharedSshInstance!!
+        }
 
         // Operation guard flag to prevent concurrent SSH requests from spam-clicks
         @Volatile
@@ -108,14 +110,15 @@ class RouterWidgetProvider : AppWidgetProvider() {
                     return@launch
                 }
 
-                updateAllWidgets(context, "Проверка...", "Состояние...", "Состояние...", "Состояние...", lastOpenVpnState, lastWireGuardState, lastLedState)
+                updateAllWidgets(context, "Проверка...", "Состояние...", "Состояние...", "Состояние...", null, null, lastLedState)
 
                 kotlinx.coroutines.withTimeout(15000) {
-                    val repository = RouterRepository(context, dao, sharedSsh)
+                    val repository = RouterRepository(context, dao, getSharedSsh(context))
+                    android.util.Log.d("SSH-Poller", "config.sshKeyId=${config.sshKeyId}, source=RouterWidgetProvider");
                     val status = repository.queryRouterStatus(config)
 
-                    lastOpenVpnState = status.isOpenVpnActive
-                    lastWireGuardState = status.isWireGuardActive
+                    
+                    
                     lastLedState = status.isLedActive
 
                     lastOpenVpnText = if (status.isOpenVpnActive) {
@@ -128,11 +131,11 @@ class RouterWidgetProvider : AppWidgetProvider() {
 
                     lastLedText = if (status.isLedActive) "Включен 🟢" else "Выключен 🔴"
 
-                    updateAllWidgets(context, "Обновлено", lastOpenVpnText, lastWireGuardText, lastLedText, lastOpenVpnState, lastWireGuardState, lastLedState)
+                    updateAllWidgets(context, "Обновлено", lastOpenVpnText, lastWireGuardText, lastLedText, null, null, lastLedState)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Widget check failed", e)
-                updateAllWidgets(context, "Ошибка", lastOpenVpnText, lastWireGuardText, lastLedText, lastOpenVpnState, lastWireGuardState, lastLedState)
+                updateAllWidgets(context, "Ошибка", lastOpenVpnText, lastWireGuardText, lastLedText, null, null, lastLedState)
             } finally {
                 synchronized(RouterWidgetProvider::class.java) {
                     isOperationInProgress = false
@@ -150,9 +153,9 @@ class RouterWidgetProvider : AppWidgetProvider() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             var previousOpenVpnText = lastOpenVpnText
-            var previousOpenVpnState = lastOpenVpnState
+            
             var previousWireGuardText = lastWireGuardText
-            var previousWireGuardState = lastWireGuardState
+            
             try {
                 val db = RouterDatabase.getDatabase(context)
                 val dao = db.routerDao()
@@ -165,27 +168,27 @@ class RouterWidgetProvider : AppWidgetProvider() {
                     return@launch
                 }
 
-                val currentOpenVpn = lastOpenVpnState ?: false
-                val currentWireGuard = lastWireGuardState ?: false
+                val currentOpenVpn = false
+                val currentWireGuard = false
                 val isVpnActive = currentOpenVpn || currentWireGuard
 
                 val nextVpnState = !isVpnActive
 
                 // Capture states before transition
                 previousOpenVpnText = lastOpenVpnText
-                previousOpenVpnState = lastOpenVpnState
+                
                 previousWireGuardText = lastWireGuardText
-                previousWireGuardState = lastWireGuardState
+                
 
                 if (nextVpnState) {
-                    lastOpenVpnState = true
+                    
                     lastOpenVpnText = "Включение..."
-                    lastWireGuardState = true
+                    
                     lastWireGuardText = "Включение..."
                 } else {
-                    lastOpenVpnState = false
+                    
                     lastOpenVpnText = "Выключение..."
-                    lastWireGuardState = false
+                    
                     lastWireGuardText = "Выключение..."
                 }
 
@@ -195,13 +198,13 @@ class RouterWidgetProvider : AppWidgetProvider() {
                     lastOpenVpnText, 
                     lastWireGuardText, 
                     lastLedText, 
-                    lastOpenVpnState, 
-                    lastWireGuardState, 
+                    null, 
+                    null, 
                     lastLedState
                 )
 
                 kotlinx.coroutines.withTimeout(35000) {
-                    val repository = RouterRepository(context, dao, sharedSsh)
+                    val repository = RouterRepository(context, dao, getSharedSsh(context))
                     val oldIp = try { repository.queryPublicIpOnly(config) } catch(e: Exception) { "" }
 
                     if (nextVpnState) {
@@ -220,7 +223,8 @@ class RouterWidgetProvider : AppWidgetProvider() {
                         
                         // We also need to stop any running WireGuard interfaces that might be active
                         try {
-                            val status = repository.queryRouterStatus(config)
+                            android.util.Log.d("SSH-Poller", "config.sshKeyId=${config.sshKeyId}, source=RouterWidgetProvider");
+                    val status = repository.queryRouterStatus(config)
                             val activeWgList = status.activeWgInterface?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
                             for (name in activeWgList) {
                                 repository.executeConsoleCommand(config, "ifdown $name", saveToLog = false)
@@ -246,8 +250,8 @@ class RouterWidgetProvider : AppWidgetProvider() {
 
                     val resultStatus = repository.queryRouterStatus(config)
 
-                    lastOpenVpnState = resultStatus.isOpenVpnActive
-                    lastWireGuardState = resultStatus.isWireGuardActive
+                    
+                    
                     lastLedState = resultStatus.isLedActive
 
                     lastOpenVpnText = if (resultStatus.isOpenVpnActive) {
@@ -260,15 +264,15 @@ class RouterWidgetProvider : AppWidgetProvider() {
 
                     lastLedText = if (resultStatus.isLedActive) "Включен 🟢" else "Выключен 🔴"
 
-                    updateAllWidgets(context, "VPN Изменен", lastOpenVpnText, lastWireGuardText, lastLedText, lastOpenVpnState, lastWireGuardState, lastLedState)
+                    updateAllWidgets(context, "VPN Изменен", lastOpenVpnText, lastWireGuardText, lastLedText, null, null, lastLedState)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "VPN toggle failure", e)
                 lastOpenVpnText = previousOpenVpnText
-                lastOpenVpnState = previousOpenVpnState
+                
                 lastWireGuardText = previousWireGuardText
-                lastWireGuardState = previousWireGuardState
-                updateAllWidgets(context, "Ошибка 🔴", lastOpenVpnText, lastWireGuardText, lastLedText, lastOpenVpnState, lastWireGuardState, lastLedState)
+                
+                updateAllWidgets(context, "Ошибка 🔴", lastOpenVpnText, lastWireGuardText, lastLedText, null, null, lastLedState)
             } finally {
                 synchronized(RouterWidgetProvider::class.java) {
                     isOperationInProgress = false
@@ -304,12 +308,12 @@ class RouterWidgetProvider : AppWidgetProvider() {
                 lastLedState = nextLed
                 lastLedText = if (nextLed) "Включен 🟢" else "Выключен 🔴"
 
-                updateAllWidgets(context, "Светодиод: Переключен", lastOpenVpnText, lastWireGuardText, lastLedText, lastOpenVpnState, lastWireGuardState, lastLedState)
+                updateAllWidgets(context, "Светодиод: Переключен", lastOpenVpnText, lastWireGuardText, lastLedText, null, null, lastLedState)
                 
                 ShortcutHelper.pushShortcutById(context, if (nextLed) "led_on" else "led_off")
 
                 kotlinx.coroutines.withTimeout(10000) {
-                    val repository = RouterRepository(context, dao, sharedSsh)
+                    val repository = RouterRepository(context, dao, getSharedSsh(context))
                     repository.setLedStatus(config, nextLed)
                 }
             } catch (e: Exception) {

@@ -1,0 +1,1 @@
+sed -i 's/val wasFirstEmission = isFirstEmission/val wasFirstEmission = isFirstEmission\n                if (isFirstEmission) {\n                    _uiState.update { it.copy(status = RouterStatus(), vpnList = emptyList()) }\n                }/g' app/src/main/java/com/example/ui/RouterViewModel.kt

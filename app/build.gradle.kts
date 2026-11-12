@@ -17,8 +17,8 @@ android {
     applicationId = "openwrt.router.control"
     minSdk = 24
     targetSdk = 36
-    versionCode = 9
-    versionName = "1.6.8"
+    versionCode = 10
+    versionName = "1.6.9"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -290,6 +290,8 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
   implementation(libs.jsch)
+  implementation(libs.bouncycastle.bcprov)
+  implementation(libs.bouncycastle.bcpkix)
   implementation(libs.androidx.core.google.shortcuts)
   
   // Force 16 KB memory page aligned version of graphics-path JNI library

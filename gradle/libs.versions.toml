@@ -39,6 +39,7 @@ roborazzi = "1.59.0"
 firebaseBom = "34.12.0"
 secretsGradlePlugin = "2.0.1"
 jsch = "0.2.20"
+bouncycastle = "1.78.1"
 coreGoogleShortcuts = "1.1.0"
 
 [libraries]
@@ -90,6 +91,8 @@ roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "robora
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-ai = { group = "com.google.firebase", name = "firebase-ai" }
 jsch = { group = "com.github.mwiede", name = "jsch", version.ref = "jsch" }
+bouncycastle-bcprov = { group = "org.bouncycastle", name = "bcprov-jdk15to18", version.ref = "bouncycastle" }
+bouncycastle-bcpkix = { group = "org.bouncycastle", name = "bcpkix-jdk15to18", version.ref = "bouncycastle" }
 androidx-core-google-shortcuts = { group = "androidx.core", name = "core-google-shortcuts", version.ref = "coreGoogleShortcuts" }
 
 [plugins]

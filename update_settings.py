@@ -1,87 +1,80 @@
-import re
+import sys
 
-with open("app/src/main/java/com/example/ui/SettingsPanel.kt", "r", encoding="utf-8") as f:
-    content = f.read()
+def modify_file(filepath):
+    with open(filepath, 'r') as f:
+        content = f.read()
 
-imports = """import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester"""
+    target = """                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { loginMethod = 0; sshKeyId = null; onFieldChanged() },
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (loginMethod == 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (loginMethod == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        border = if (loginMethod == 0) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+                    ) {
+                        Text(translateText("Вход по паролю", context), fontSize = 13.sp)
+                    }
+                    Button(
+                        onClick = { loginMethod = 1; password = ""; onFieldChanged() },
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (loginMethod == 1) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (loginMethod == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        border = if (loginMethod == 1) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+                    ) {
+                        Text(translateText("Вход по SSH ключу", context), fontSize = 13.sp)
+                    }
+                }"""
+                
+    replacement = """                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val passInteractionSource = remember { MutableInteractionSource() }
+                    val isPassFocused by passInteractionSource.collectIsFocusedAsState()
+                    Button(
+                        onClick = { loginMethod = 0; sshKeyId = null; onFieldChanged() },
+                        interactionSource = passInteractionSource,
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isTv && isPassFocused) MaterialTheme.colorScheme.tertiary else if (loginMethod == 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (isTv && isPassFocused) MaterialTheme.colorScheme.onTertiary else if (loginMethod == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        border = if (!isTv && loginMethod == 0) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else if (isTv && loginMethod == 0 && !isPassFocused) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+                    ) {
+                        Text(translateText("Вход по паролю", context), fontSize = 13.sp)
+                    }
+                    val sshInteractionSource = remember { MutableInteractionSource() }
+                    val isSshFocused by sshInteractionSource.collectIsFocusedAsState()
+                    Button(
+                        onClick = { loginMethod = 1; password = ""; onFieldChanged() },
+                        interactionSource = sshInteractionSource,
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isTv && isSshFocused) MaterialTheme.colorScheme.tertiary else if (loginMethod == 1) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (isTv && isSshFocused) MaterialTheme.colorScheme.onTertiary else if (loginMethod == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        border = if (!isTv && loginMethod == 1) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else if (isTv && loginMethod == 1 && !isSshFocused) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+                    ) {
+                        Text(translateText("Вход по SSH ключу", context), fontSize = 13.sp)
+                    }
+                }"""
 
-if "import androidx.activity.compose.BackHandler" not in content:
-    content = content.replace("import androidx.compose.foundation.clickable", imports + "\nimport androidx.compose.foundation.clickable")
+    if target in content:
+        content = content.replace(target, replacement)
+        print("SettingsPanel Target replaced.")
+    else:
+        print("SettingsPanel Target NOT found.")
+        
+    with open(filepath, 'w') as f:
+        f.write(content)
 
-# Add FocusRequester to EditRouterForm
-if "val checkConnectionFocusRequester" not in content:
-    content = content.replace("val coroutineScope = rememberCoroutineScope()", "val coroutineScope = rememberCoroutineScope()\n    val checkConnectionFocusRequester = remember { FocusRequester() }\n    if (!isFirst) {\n        BackHandler {\n            onCancel()\n        }\n    }")
-
-# Update Password Field
-old_pwd = """                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { 
-                            password = it
-                            onFieldChanged()
-                        },
-                        label = { Text(translateText("Пароль или приватный ключ", context)) },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        modifier = Modifier.weight(1f).onFocusChanged {
-                            if (it.isFocused) {
-                                coroutineScope.launch {
-                                    kotlinx.coroutines.delay(300)
-                                    val lastIndex = listState.layoutInfo.totalItemsCount - 1
-                                    if (lastIndex >= 0) {
-                                        listState.animateScrollToItem(lastIndex)
-                                    }
-                                }
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    )"""
-
-new_pwd = """                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { 
-                            password = it
-                            onFieldChanged()
-                        },
-                        label = { Text(translateText("Пароль или приватный ключ", context)) },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { checkConnectionFocusRequester.requestFocus() }),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f).onFocusChanged {
-                            if (it.isFocused) {
-                                coroutineScope.launch {
-                                    kotlinx.coroutines.delay(300)
-                                    val lastIndex = listState.layoutInfo.totalItemsCount - 1
-                                    if (lastIndex >= 0) {
-                                        listState.animateScrollToItem(lastIndex)
-                                    }
-                                }
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    )"""
-
-content = content.replace(old_pwd, new_pwd)
-
-# Add focusRequester to "Check connection" button
-old_btn = """                    Button(
-                        onClick = {
-                            val p = port.toIntOrNull() ?: 22
-                            onTest(ip, p, user, password)
-                        },
-                        modifier = Modifier.weight(1f).height(48.dp),"""
-
-new_btn = """                    Button(
-                        onClick = {
-                            val p = port.toIntOrNull() ?: 22
-                            onTest(ip, p, user, password)
-                        },
-                        modifier = Modifier.weight(1f).height(48.dp).focusRequester(checkConnectionFocusRequester),"""
-
-content = content.replace(old_btn, new_btn)
-
-with open("app/src/main/java/com/example/ui/SettingsPanel.kt", "w", encoding="utf-8") as f:
-    f.write(content)
+modify_file('app/src/main/java/com/example/ui/SettingsPanel.kt')

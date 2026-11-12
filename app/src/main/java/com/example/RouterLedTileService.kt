@@ -16,7 +16,11 @@ class RouterLedTileService : TileService() {
 
     companion object {
         private val sharedScope = CoroutineScope(Dispatchers.IO)
-        private val sharedSsh = SshClientManager()
+        private var sharedSshInstance: SshClientManager? = null
+        private fun getSharedSsh(context: android.content.Context): SshClientManager {
+            if (sharedSshInstance == null) sharedSshInstance = SshClientManager(context.applicationContext)
+            return sharedSshInstance!!
+        }
         private var updateJob: kotlinx.coroutines.Job? = null
         private var toggleJob: kotlinx.coroutines.Job? = null
     }
@@ -33,7 +37,7 @@ class RouterLedTileService : TileService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Do not cancel sharedScope or disconnect sharedSsh so active background commands can complete
+        // Do not cancel sharedScope or disconnect getSharedSsh(this@RouterLedTileService.applicationContext) so active background commands can complete
     }
 
     override fun onStartListening() {
@@ -82,7 +86,8 @@ class RouterLedTileService : TileService() {
                     tile.updateTile()
                 }
 
-                val repository = RouterRepository(this@RouterLedTileService, dao, sharedSsh)
+                val repository = RouterRepository(this@RouterLedTileService, dao, getSharedSsh(this@RouterLedTileService.applicationContext))
+                android.util.Log.d("SSH-Poller", "config.sshKeyId=${config.sshKeyId}, source=RouterLedTileService");
                 val status = repository.queryRouterStatus(config)
 
                 if (!force && toggleJob?.isActive == true) return@launch
@@ -143,7 +148,7 @@ class RouterLedTileService : TileService() {
 
                 ShortcutHelper.pushShortcutById(applicationContext, if (nextState) "led_on" else "led_off")
 
-                val repository = RouterRepository(this@RouterLedTileService, dao, sharedSsh)
+                val repository = RouterRepository(this@RouterLedTileService, dao, getSharedSsh(this@RouterLedTileService.applicationContext))
                 repository.setLedStatus(config, nextState)
                 
                 toggleSuccess = true

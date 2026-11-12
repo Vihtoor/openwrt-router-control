@@ -1,0 +1,16 @@
+--- app/src/main/java/com/example/RouterLedTileService.kt
++++ app/src/main/java/com/example/RouterLedTileService.kt
+@@ -16,10 +16,10 @@
+ 
+     companion object {
+         private val sharedScope = CoroutineScope(Dispatchers.IO)
+-        private var getSharedSsh(applicationContext)Instance: SshClientManager? = null
++        private var sharedSshInstance: SshClientManager? = null
+         private fun getSharedSsh(context: android.content.Context): SshClientManager {
+-            if (getSharedSsh(applicationContext)Instance == null) getSharedSsh(applicationContext)Instance = SshClientManager(context.applicationContext)
+-            return getSharedSsh(applicationContext)Instance!!
++            if (sharedSshInstance == null) sharedSshInstance = SshClientManager(context.applicationContext)
++            return sharedSshInstance!!
+         }
+         private var updateJob: kotlinx.coroutines.Job? = null
+         private var toggleJob: kotlinx.coroutines.Job? = null

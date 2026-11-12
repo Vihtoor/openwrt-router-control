@@ -1,4 +1,7 @@
 package com.example.data
+import java.security.Security
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import android.content.Context
 
 import android.util.Log
 import com.jcraft.jsch.ChannelExec
@@ -31,7 +34,25 @@ data class SshResult(
     }
 }
 
-class SshClientManager {
+class SshClientManager(private val context: Context) {
+
+    init {
+        com.jcraft.jsch.JSch.setLogger(object : com.jcraft.jsch.Logger {
+            override fun isEnabled(level: Int) = true
+            override fun log(level: Int, message: String) {
+                android.util.Log.d("JSch-Internal", message)
+            }
+        })
+        try {
+            if (Security.getProvider("BC") !is BouncyCastleProvider) {
+                Security.removeProvider("BC")
+                Security.insertProviderAt(BouncyCastleProvider(), 1)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private val mutex = Mutex()
     private val commandMutex = Mutex()
     private var activeSession: Session? = null
@@ -90,6 +111,7 @@ class SshClientManager {
             val session = getConnectedSession(config)
             session.isConnected
         } catch (e: Exception) {
+            Log.e("SSH-Debug", "Caught exception in SshClientManager.testConnection", e)
             Log.e("SshClientManager", "Connection test failed: ${e.message}")
             false
         }
@@ -98,20 +120,61 @@ class SshClientManager {
     suspend fun getConnectedSession(config: RouterConfig): Session = withContext(Dispatchers.IO) {
         mutex.withLock {
             val currentSession = activeSession
-            if (currentSession != null && currentSession.isConnected && lastConfig?.id == config.id && lastConfig?.ipAddress == config.ipAddress && lastConfig?.port == config.port && lastConfig?.username == config.username && lastConfig?.sshKeyOrPassword == config.sshKeyOrPassword) {
+            if (currentSession != null && currentSession.isConnected && lastConfig?.id == config.id && lastConfig?.ipAddress == config.ipAddress && lastConfig?.port == config.port && lastConfig?.username == config.username && lastConfig?.sshKeyOrPassword == config.sshKeyOrPassword && lastConfig?.sshKeyId == config.sshKeyId) {
                 return@withContext currentSession
             }
 
             closeSessionInternal()
 
-            Log.d("SshClientManager", "Establishing new SSH session to ${config.ipAddress}:${config.port}")
             val jsch = JSch()
             val cleanIp = config.ipAddress.removePrefix("[").removeSuffix("]")
+            Log.d("SshClientManager", "Establishing new SSH session to $cleanIp:${config.port}, sshKeyId=${config.sshKeyId}")
+            
+            var privBytes: ByteArray? = null
+            var pubBytes: ByteArray? = null
+            var passphraseBytes: ByteArray? = null
+            
+            if (config.sshKeyId != null) {
+                val keyManager = SshKeyManager(context)
+                privBytes = keyManager.loadPrivateKeyBytes(config.sshKeyId)
+                pubBytes = keyManager.loadPublicKeyString(config.sshKeyId)?.toByteArray(Charsets.UTF_8)
+                if (config.sshKeyOrPassword.isNotEmpty()) {
+                    passphraseBytes = config.sshKeyOrPassword.toByteArray(Charsets.UTF_8)
+                }
+                try {
+                    jsch.addIdentity("key_${config.sshKeyId}", privBytes, pubBytes, passphraseBytes)
+                    Log.d("SshClientManager", "addIdentity SUCCESS for keyId=${config.sshKeyId}, passphrase provided=${passphraseBytes != null}")
+                } catch (e: Exception) {
+                    Log.e("SshClientManager", "addIdentity FAILED for keyId=${config.sshKeyId}", e)
+                    throw Exception("Ошибка добавления ключа (неверный пароль или несовместимый формат?): ${e.message}", e)
+                }
+                
+                try {
+                    val identities = jsch.identityRepository.identities
+                    Log.d("SshClientManager", "Registered identities: ${identities.map { it.name }}")
+                    for (identity in identities) {
+                        Log.d("SshClientManager", "Identity ${identity.name} isEncrypted: ${identity.isEncrypted}")
+                    }
+                } catch (e: Exception) {
+                    Log.d("SshClientManager", "Failed to query identities: ${e.message}")
+                }
+            }
+
             val session = jsch.getSession(config.username, cleanIp, config.port)
-            session.setPassword(config.sshKeyOrPassword)
+            if (config.sshKeyId == null) {
+                session.setPassword(config.sshKeyOrPassword)
+            }
             
             val properties = Properties()
             properties["StrictHostKeyChecking"] = "no"
+            if (config.sshKeyId != null) {
+                properties["PreferredAuthentications"] = "publickey"
+            } else {
+                properties["PreferredAuthentications"] = "password,keyboard-interactive"
+            }
+            properties["PubkeyAcceptedAlgorithms"] = "ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521"
+            properties["server_host_key"] = "ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521"
+
             properties["TCPKeepAlive"] = "yes"
             session.setConfig(properties)
             session.timeout = 5000 // 5 seconds connect timeout
@@ -244,10 +307,12 @@ class SshClientManager {
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e("SshClientManager", "Interactive shell read error: ${e.message}")
+                        Log.e("SSH-Debug", "Caught exception in SshClientManager interactive shell read", e)
+                                Log.e("SshClientManager", "Interactive shell read error: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
+                Log.e("SSH-Debug", "Caught exception in SshClientManager.startInteractiveShell", e)
                 Log.e("SshClientManager", "Failed to start interactive shell: ${e.message}")
                 stopInteractiveShellInternal()
                 throw e

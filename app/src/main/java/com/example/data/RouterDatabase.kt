@@ -5,9 +5,10 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [RouterConfig::class, ConsoleLog::class], version = 9, exportSchema = false)
+@Database(entities = [RouterConfig::class, ConsoleLog::class, SshKeyEntity::class], version = 10, exportSchema = false)
 abstract class RouterDatabase : RoomDatabase() {
     abstract fun routerDao(): RouterDao
+    abstract fun sshKeyDao(): SshKeyDao
 
     companion object {
         @Volatile
